@@ -1,3 +1,6 @@
+//! Library for controlling Yeelight lamps through Rust.
+
+/// Module for commands.
 pub mod cmd;
 
 /*
