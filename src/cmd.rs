@@ -1,5 +1,5 @@
 use log::info;
-use std::{default, time::Duration};
+use std::{fmt::Display, time::Duration};
 
 /// A Yeelight command represented as a struct.
 ///
@@ -19,14 +19,13 @@ pub struct Command {
 /// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
 pub struct Action(InnerAction);
 
-///
-///
-///
-//#[doc = "They are derived from the [InnerAction] enum, but do not contain any values, and are publically available."]
 #[derive(strum_macros::EnumDiscriminants)]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(name(CommandKind))]
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
+#[strum_discriminants(
+    doc = "They are derived from the [InnerAction] enum, but do not contain any values, and are publically available."
+)]
 /// A change done to a lamp.
 ///
 /// This is the inner enum of [Action]. The commands that can be given to the lamp are defined here.
@@ -81,7 +80,55 @@ impl Command {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum_macros::Display)]
+/// The transition between the current and new state of the lamp.
+///
+/// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
+/// using [Effect]::from() or the into() method on a Duration.
+enum Effect {
+    #[default]
+    /// Change the lamp to the new state immediately.
+    Sudden,
+    /// Smoothly fade into the new state over some [SmoothDuration].
+    Smooth(SmoothDuration),
+}
+
+impl From<Duration> for Effect {
+    fn from(value: Duration) -> Self {
+        if value.is_zero() {
+            Self::Sudden
+        } else {
+            Self::Smooth(SmoothDuration::from(value))
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// A newtype enclosing a [Duration].
+///
+/// This is used to enforce the requirement that smooth transitions must last at least 30 milliseconds.
+/// The easiest way to create a SmoothDuration struct is to call SmoothDuration::from();
+/// or alternatively, to call the into() method on a Duration.
+pub struct SmoothDuration(Duration);
+
+impl Display for SmoothDuration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"smooth\",{}", self.0.as_millis())
+    }
+}
+
+impl From<Duration> for SmoothDuration {
+    fn from(value: Duration) -> Self {
+        if value.as_millis() < 30 {
+            Self(Duration::from_millis(30))
+        } else {
+            Self(value)
+        }
+    }
+}
+
 // TODO consider rewriting Effect as an enum, and having a SmoothDuration newtype that enforces the time constraint?
+/*
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, derive_more::Display)]
 /// The transition between the current and new state of the lamp.
@@ -99,7 +146,6 @@ enum InnerEffect {
     /// Change the lamp to the new state instantly.
     Sudden,
     #[strum(to_string = "\"smooth\",todo")]
-    /// Smoothly fade into the new state over some Duration.
     Smooth(Duration),
 }
 
@@ -127,6 +173,7 @@ impl Effect {
         Effect(InnerEffect::Sudden)
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -135,34 +182,50 @@ mod tests {
 
     #[test]
     fn create_smooth_zero_secs() {
-        let result = Effect::new_smooth(Duration::from_secs(0));
-        assert_eq!(result, Effect(InnerEffect::Sudden));
+        let result: Effect = Duration::from_secs(0).into();
+        assert_eq!(result, Effect::Sudden);
     }
 
     #[test]
     fn create_smooth_zero_millis() {
-        let result = Effect::new_smooth(Duration::from_millis(0));
-        assert_eq!(result, Effect(InnerEffect::Sudden));
+        let result: Effect = Duration::from_millis(0).into();
+        assert_eq!(result, Effect::Sudden);
     }
 
     #[test]
     fn create_smooth_short_1() {
-        let result = Effect::new_smooth(Duration::from_millis(10));
-        let expect = Effect(InnerEffect::Smooth(Duration::from_millis(30)));
+        let result: Effect = Duration::from_millis(10).into();
+        let expect: Effect = Duration::from_millis(30).into();
         assert_eq!(result, expect);
     }
 
     #[test]
     fn create_smooth_short_2() {
-        let result = Effect::new_smooth(Duration::from_millis(25));
-        let expect = Effect(InnerEffect::Smooth(Duration::from_millis(30)));
+        let result: Effect = Duration::from_millis(25).into();
+        let expect: Effect = Duration::from_millis(30).into();
         assert_eq!(result, expect);
     }
 
     #[test]
     fn create_smooth_long() {
-        let result = Effect::new_smooth(Duration::from_millis(2000));
-        let expect = Effect(InnerEffect::Smooth(Duration::from_secs(2)));
+        let result: Effect = Duration::from_millis(2000).into();
+        let expect: Effect = Duration::from_secs(2).into();
+        assert_eq!(result, expect);
+    }
+
+    #[test]
+    fn into_smoothduration_short() {
+        let smoothdur: SmoothDuration = Duration::from_millis(10).into();
+        let result = Effect::Smooth(smoothdur);
+        let expect: Effect = Duration::from_millis(30).into();
+        assert_eq!(result, expect);
+    }
+
+    #[test]
+    fn into_smoothduration_long() {
+        let smoothdur: SmoothDuration = Duration::from_secs(3).into();
+        let result = Effect::Smooth(smoothdur);
+        let expect: Effect = Duration::from_millis(3000).into();
         assert_eq!(result, expect);
     }
 }
