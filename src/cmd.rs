@@ -1,25 +1,13 @@
 use log::info;
 use std::{fmt::Display, time::Duration};
 
-/// A Yeelight command represented as a struct.
-///
-/// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
-/// What the command does is stored in the data field of [Command].
-#[derive(Clone, Copy, Debug)]
-pub struct Command {
-    /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
-    pub action: Action,
-    /// The transition (sudden or smooth) is represented by [Effect].
-    pub eff: Effect,
-    /// A integer used to distinguish between requests.
-    pub id: u8,
-}
-
-/// The change that is done by a [Command].
-///
-/// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Action(InnerAction);
+/*
+ * Please follow this order:
+ * - structs/enums, ordered s.t. dependencies are above dependents
+ * (so newtypes come AFTER the types they enclose)
+ * - impls (e.g. impl Command)
+ * - impl _ for _ (like Display, From<T>,...)
+ */
 
 #[derive(strum_macros::EnumDiscriminants)]
 #[strum_discriminants(vis(pub))]
@@ -41,6 +29,56 @@ enum InnerAction {
     /// For example, in order to set the lamp to display a purple color (RGB 128,49,181), you can pass 0x8031b5u32.
     /// Generally, for a hex color #RRGGBB, you pass the integer 0x00{RR}{GG}{BB}.
     SetRgb(u32), // TODO rewrite to use [u8; 3] maybe?
+}
+
+/// The change that is done by a [Command].
+///
+/// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Action(InnerAction);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// A newtype enclosing a [Duration].
+///
+/// This is used to enforce the requirement that smooth transitions must last at least 30 milliseconds.
+/// The easiest way to create a SmoothDuration struct is to call SmoothDuration::from();
+/// or alternatively, to call the into() method on a Duration.
+pub struct SmoothDuration(Duration);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum_macros::Display)]
+/// The transition between the current and new state of the lamp.
+///
+/// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
+/// using [Effect]::from() or the into() method on a Duration.
+pub enum Effect {
+    #[default]
+    /// Change the lamp to the new state immediately.
+    Sudden,
+    /// Smoothly fade into the new state over some [SmoothDuration].
+    Smooth(SmoothDuration),
+}
+
+/// A Yeelight command represented as a struct.
+///
+/// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
+/// What the command does is stored in the data field of [Command].
+#[derive(Clone, Copy, Debug)]
+pub struct Command {
+    /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
+    pub action: Action,
+    /// The transition (sudden or smooth) is represented by [Effect].
+    pub eff: Effect,
+    /// A integer used to distinguish between requests.
+    pub id: u8,
+}
+
+impl Command {
+    /// Get the String that should be sent to the lamp through a TcpStream in order to perform the [Command].
+    ///
+    /// Note that the terminator `\r\n` is not included in the output.
+    pub fn to_request(&self) -> String {
+        todo!()
+    }
 }
 
 impl Action {
@@ -77,46 +115,6 @@ impl Action {
     }
 }
 
-impl Command {
-    /// Get the String that should be sent to the lamp through a TcpStream in order to perform the [Command].
-    ///
-    /// Note that the terminator `\r\n` is not included in the output.
-    pub fn to_request(&self) -> String {
-        todo!()
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum_macros::Display)]
-/// The transition between the current and new state of the lamp.
-///
-/// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
-/// using [Effect]::from() or the into() method on a Duration.
-pub enum Effect {
-    #[default]
-    /// Change the lamp to the new state immediately.
-    Sudden,
-    /// Smoothly fade into the new state over some [SmoothDuration].
-    Smooth(SmoothDuration),
-}
-
-impl From<Duration> for Effect {
-    fn from(value: Duration) -> Self {
-        if value.is_zero() {
-            Self::Sudden
-        } else {
-            Self::Smooth(SmoothDuration::from(value))
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-/// A newtype enclosing a [Duration].
-///
-/// This is used to enforce the requirement that smooth transitions must last at least 30 milliseconds.
-/// The easiest way to create a SmoothDuration struct is to call SmoothDuration::from();
-/// or alternatively, to call the into() method on a Duration.
-pub struct SmoothDuration(Duration);
-
 impl Display for SmoothDuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "\"smooth\",{}", self.0.as_millis())
@@ -129,6 +127,16 @@ impl From<Duration> for SmoothDuration {
             Self(Duration::from_millis(30))
         } else {
             Self(value)
+        }
+    }
+}
+
+impl From<Duration> for Effect {
+    fn from(value: Duration) -> Self {
+        if value.is_zero() {
+            Self::Sudden
+        } else {
+            Self::Smooth(SmoothDuration::from(value))
         }
     }
 }
