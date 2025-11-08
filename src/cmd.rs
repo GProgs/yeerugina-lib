@@ -49,6 +49,7 @@ impl Action {
     /// This method enforces the constraint 1700K <= ct <= 6500K.
     pub fn new_ct(ct: u16) -> Option<Self> {
         if !(1700..=6500).contains(&ct) {
+            info!("Attempted to create SetCtAbx with {ct}K");
             return None;
         }
         Some(Self(InnerAction::SetCtAbx(ct)))
@@ -56,11 +57,22 @@ impl Action {
 
     /// Create a new Action for changing the color of the lamp to some RGB color.
     ///
-    /// The two largest bytes of the u32 must be zero.
-    pub fn new_rgb(rgb: u32) -> Option<Self> {
+    /// The largest byte of the u32 will be ignored.
+    pub fn new_rgb_from_int(rgb: u32) -> Option<Self> {
         if !(0..=0xFFFFFF).contains(&rgb) {
-            return None;
+            info!("Discarding highest byte from SetRgb with {:#x}", rgb);
+            Some(Self(InnerAction::SetRgb(rgb & 0x00FFFFFFu32)))
+        } else {
+            Some(Self(InnerAction::SetRgb(rgb)))
         }
+    }
+
+    /// Create a new Action for changing the color of the lamp to some RGB color.
+    ///
+    /// This function takes three u8 values representing the red, green, and blue channels.
+    pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Option<Self> {
+        let rgb = u32::from_be_bytes([0x0, r, g, b]);
+        // We don't need to verify since we know that the largest byte is zero
         Some(Self(InnerAction::SetRgb(rgb)))
     }
 
