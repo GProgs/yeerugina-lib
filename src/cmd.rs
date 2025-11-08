@@ -1,3 +1,4 @@
+use derive_more::{Debug, Display};
 use log::info;
 use std::{fmt::Display, time::Duration};
 
@@ -10,8 +11,9 @@ use std::{fmt::Display, time::Duration};
  */
 
 #[derive(strum_macros::EnumDiscriminants)]
+#[strum_discriminants(derive(Display))]
+#[strum_discriminants(name(CommandKind))] // don't use default name
 #[strum_discriminants(vis(pub))]
-#[strum_discriminants(name(CommandKind))]
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
 #[strum_discriminants(
     doc = "They are derived from the [InnerAction] enum, but do not contain any values, and are publically available."
@@ -23,19 +25,20 @@ use std::{fmt::Display, time::Duration};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InnerAction {
     /// Set the color temperature of the lamp to some number of kelvins.
-    SetCtAbx(u16),
+    SetCtAbx(#[debug("{_0}K")] u16), // add kelvin unit
     /// Set the lamp to display a color by passing a u32.
     /// The eight smallest bits denote the blue value, then the following bytes denote green and red.
-    /// For example, in order to set the lamp to display a purple color (RGB 128,49,181), you can pass 0x8031b5u32.
+    /// For example, in order to set the lamp to display a purple color (RGB 165,26,234), you can pass 0xa61aeau32.
     /// Generally, for a hex color #RRGGBB, you pass the integer 0x00{RR}{GG}{BB}.
-    SetRgb(u32), // TODO rewrite to use [u8; 3] maybe?
+    SetRgb(#[debug("{_0:x}")] u32), // print as hex
 }
 
 /// The change that is done by a [Command].
 ///
 /// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Action(InnerAction);
+pub struct Action(#[debug("{_0:?}")] InnerAction);
+// remove prefix SmoothDuration() from Debug output
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 /// A newtype enclosing a [Duration].
@@ -55,7 +58,7 @@ pub enum Effect {
     /// Change the lamp to the new state immediately.
     Sudden,
     /// Smoothly fade into the new state over some [SmoothDuration].
-    Smooth(SmoothDuration),
+    Smooth(#[debug("{}ms",_0.0.as_millis())] SmoothDuration), // print as millis
 }
 
 /// A Yeelight command represented as a struct.
