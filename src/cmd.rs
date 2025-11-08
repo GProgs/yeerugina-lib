@@ -193,7 +193,7 @@ impl Effect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
+    use pretty_assertions::{assert_eq, assert_ne};
 
     #[test]
     fn create_smooth_zero_secs() {
@@ -242,5 +242,22 @@ mod tests {
         let result = Effect::Smooth(smoothdur);
         let expect: Effect = Duration::from_millis(3000).into();
         assert_eq!(result, expect);
+    }
+
+    #[test]
+    fn rgb_eq() {
+        let rgb_1 = Action::new_rgb_from_int(0xDEADFEu32);
+        let rgb_2 = Action::new_rgb_from_parts(222, 173, 254);
+        assert_eq!(rgb_1, rgb_2);
+    }
+
+    #[test]
+    fn rgb_eqne() {
+        let rgb_1 = Action::new_rgb_from_int(0xA61A3Au32);
+        let rgb_2_wrong = Action::new_rgb_from_parts(58, 26, 166);
+        assert_ne!(rgb_1, rgb_2_wrong);
+        let rgb_2_right = Action::new_rgb_from_parts(166, 26, 58);
+        assert_ne!(rgb_2_wrong, rgb_2_right);
+        assert_eq!(rgb_1, rgb_2_right);
     }
 }
