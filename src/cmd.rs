@@ -22,21 +22,24 @@ use std::{fmt::Display, time::Duration};
 ///
 /// This is the inner enum of [Action]. The commands that can be given to the lamp are defined here.
 /// The enum variants also contain data needed to accomplish these actions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Display, PartialEq, Eq)]
+//#[display("\"method\":{_variant}")]
 enum InnerAction {
     /// Set the color temperature of the lamp to some number of kelvins.
+    #[display("\"set_ct_abx\",\"params\":[{_0}")]
     SetCtAbx(#[debug("{_0}K")] u16), // add kelvin unit
     /// Set the lamp to display a color by passing a u32.
     /// The eight smallest bits denote the blue value, then the following bytes denote green and red.
     /// For example, in order to set the lamp to display a purple color (RGB 165,26,234), you can pass 0xa61aeau32.
     /// Generally, for a hex color #RRGGBB, you pass the integer 0x00{RR}{GG}{BB}.
+    #[display("\"set_rgb\",\"params\":[{_0}")]
     SetRgb(#[debug("{_0:x}")] u32), // print as hex
 }
 
 /// The change that is done by a [Command].
 ///
 /// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Display, Debug, PartialEq, Eq)]
 pub struct Action(#[debug("{_0:?}")] InnerAction);
 // remove prefix SmoothDuration() from Debug output
 
@@ -48,15 +51,17 @@ pub struct Action(#[debug("{_0:?}")] InnerAction);
 /// or alternatively, to call the into() method on a Duration.
 pub struct SmoothDuration(Duration);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum_macros::Display)]
+#[derive(Clone, Copy, Display, Debug, Default, PartialEq, Eq)]
 /// The transition between the current and new state of the lamp.
 ///
 /// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
 /// using [Effect]::from() or the into() method on a Duration.
 pub enum Effect {
     #[default]
+    #[display("\"sudden\"")]
     /// Change the lamp to the new state immediately.
     Sudden,
+    #[display("\"smooth\", {_0}")]
     /// Smoothly fade into the new state over some [SmoothDuration].
     Smooth(#[debug("{}ms",_0.0.as_millis())] SmoothDuration), // print as millis
 }
@@ -65,7 +70,8 @@ pub enum Effect {
 ///
 /// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
 /// What the command does is stored in the data field of [Command].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Display, Debug)]
+#[display(r#"{{"id":{id},"method":{action}, {eff}]}}\r\n"#)]
 pub struct Command {
     /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
     pub action: Action,
@@ -74,6 +80,13 @@ pub struct Command {
     /// A integer used to distinguish between requests.
     pub id: u8,
 }
+/* Explanation for the display string:
+ * Here, we do {"id":32,"method":
+ * then action's Display does "set_ct_abx","params":[3200
+ * then we add a comma and space ,
+ * then effect's Display does "smooth", 3200
+ * and we finish off with ]}\r\n
+ */
 
 impl Command {
     /// Get the String that should be sent to the lamp through a TcpStream in order to perform the [Command].
