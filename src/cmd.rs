@@ -5,6 +5,7 @@ use std::{fmt::Display, time::Duration};
 ///
 /// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
 /// What the command does is stored in the data field of [Command].
+#[derive(Clone, Copy, Debug)]
 pub struct Command {
     /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
     pub action: Action,
@@ -17,6 +18,7 @@ pub struct Command {
 /// The change that is done by a [Command].
 ///
 /// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Action(InnerAction);
 
 #[derive(strum_macros::EnumDiscriminants)]
@@ -30,6 +32,7 @@ pub struct Action(InnerAction);
 ///
 /// This is the inner enum of [Action]. The commands that can be given to the lamp are defined here.
 /// The enum variants also contain data needed to accomplish these actions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InnerAction {
     /// Set the color temperature of the lamp to some number of kelvins.
     SetCtAbx(u16),
@@ -85,7 +88,7 @@ impl Command {
 ///
 /// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
 /// using [Effect]::from() or the into() method on a Duration.
-enum Effect {
+pub enum Effect {
     #[default]
     /// Change the lamp to the new state immediately.
     Sudden,
