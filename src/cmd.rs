@@ -75,15 +75,6 @@ impl Action {
         // We don't need to verify since we know that the largest byte is zero
         Some(Self(InnerAction::SetRgb(rgb)))
     }
-
-    /*
-    pub fn new<T>(kind: CommandKind, data: T) -> Option<Self> {
-        match kind {
-            CommandKind::SetCtAbx => Self::new_ct(data),
-            CommandKind::SetRgb => Self::new_rgb(data),
-        }
-    }
-    */
 }
 
 impl Command {
@@ -141,54 +132,6 @@ impl From<Duration> for SmoothDuration {
         }
     }
 }
-
-// TODO consider rewriting Effect as an enum, and having a SmoothDuration newtype that enforces the time constraint?
-/*
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, derive_more::Display)]
-/// The transition between the current and new state of the lamp.
-///
-/// This is a newtype struct enclosing an enum so that restrictions on the smooth duration can be enforced.
-pub struct Effect(InnerEffect);
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, strum_macros::Display)]
-/// A transition between lamp states.
-///
-/// This is the inner enum of [Effect].
-enum InnerEffect {
-    #[default]
-    #[strum(to_string = "\"sudden\"")]
-    /// Change the lamp to the new state instantly.
-    Sudden,
-    #[strum(to_string = "\"smooth\",todo")]
-    Smooth(Duration),
-}
-
-impl Effect {
-    /// Create a new instance of a smooth transition.
-    ///
-    /// If the given Duration is zero, the effect will be converted to a sudden transition.
-    /// If the given Duration is <=30ms, the Duration of the smooth effect will be clamped to 30ms.
-    pub fn new_smooth(dur: Duration) -> Self {
-        // Logic depending on the length of dur
-        // Zero Durations converted to sudden transitions
-        // <30ms clamped to 30ms
-        match dur.as_millis() {
-            _ if dur.is_zero() => Effect(InnerEffect::Sudden),
-            0..=30 => {
-                info!("Clamped effect duration");
-                Effect(InnerEffect::Smooth(Duration::from_millis(30)))
-            }
-            _ => Effect(InnerEffect::Smooth(dur)),
-        }
-    }
-
-    /// Create a new instance of a sudden transition.
-    pub fn new_sudden() -> Self {
-        Effect(InnerEffect::Sudden)
-    }
-}
-*/
 
 #[cfg(test)]
 mod tests {
