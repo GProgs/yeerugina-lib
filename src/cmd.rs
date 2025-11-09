@@ -11,6 +11,7 @@ use std::{fmt::Display, time::Duration};
  */
 
 #[derive(strum_macros::EnumDiscriminants)]
+#[strum(serialize_all = "snake_case")]
 #[strum_discriminants(derive(Display))]
 #[strum_discriminants(name(CommandKind))] // don't use default name
 #[strum_discriminants(vis(pub))]
@@ -61,7 +62,7 @@ pub enum Effect {
     #[display("\"sudden\"")]
     /// Change the lamp to the new state immediately.
     Sudden,
-    #[display("\"smooth\", {_0}")]
+    #[display("{_0}")]
     /// Smoothly fade into the new state over some [SmoothDuration].
     Smooth(#[debug("{}ms",_0.0.as_millis())] SmoothDuration), // print as millis
 }
@@ -71,7 +72,7 @@ pub enum Effect {
 /// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
 /// What the command does is stored in the data field of [Command].
 #[derive(Clone, Copy, Display, Debug)]
-#[display(r#"{{"id":{id},"method":{action}, {eff}]}}\r\n"#)]
+#[display(r#"{{"id":{id},"method":{action}, {eff}]}}"#)]
 pub struct Command {
     /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
     pub action: Action,
@@ -85,15 +86,16 @@ pub struct Command {
  * then action's Display does "set_ct_abx","params":[3200
  * then we add a comma and space ,
  * then effect's Display does "smooth", 3200
- * and we finish off with ]}\r\n
+ * and we finish off with ]}
+ * and to_request() adds \r\n
  */
 
 impl Command {
-    /// Get the String that should be sent to the lamp through a TcpStream in order to perform the [Command].
+    /// Get the command as a String, including all necessary parameters.
     ///
-    /// Note that the terminator `\r\n` is not included in the output.
+    /// The resulting String should be sent to the lamp through a TcpStream.
     pub fn to_request(&self) -> String {
-        todo!()
+        format!("{}\r\n", &self)
     }
 }
 
@@ -113,6 +115,7 @@ impl Action {
     ///
     /// The largest byte of the u32 will be ignored.
     pub fn new_rgb_from_int(rgb: u32) -> Option<Self> {
+        // TODO consider implementing From<u32>
         if !(0..=0xFFFFFF).contains(&rgb) {
             info!("Discarding highest byte from SetRgb with {:#x}", rgb);
             Some(Self(InnerAction::SetRgb(rgb & 0x00FFFFFFu32)))
@@ -125,6 +128,7 @@ impl Action {
     ///
     /// This function takes three u8 values representing the red, green, and blue channels.
     pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Option<Self> {
+        // TODO From<(u8,u8,u8)>
         let rgb = u32::from_be_bytes([0x0, r, g, b]);
         // We don't need to verify since we know that the largest byte is zero
         Some(Self(InnerAction::SetRgb(rgb)))
@@ -133,7 +137,7 @@ impl Action {
 
 impl Display for SmoothDuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\"smooth\",{}", self.0.as_millis())
+        write!(f, "\"smooth\", {}", self.0.as_millis())
     }
 }
 
