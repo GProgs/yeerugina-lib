@@ -12,6 +12,14 @@ strum_macros = "0.27.2"
 [dev-dependencies]
 pretty_assertions = "1.4.1"
 
+[lints.clippy]
+doc_broken_link = "warn"
+doc_comment_double_space_linebreaks = "warn"
+implicit_clone = "warn"
+large_types_passed_by_value = "warn"
+needless_pass_by_ref_mut = "warn"
+needless_pass_by_value = "warn"
+
 [lints.rust]
 ambiguous_negative_literals = "deny"
 deref_into_dyn_supertrait = "deny"
