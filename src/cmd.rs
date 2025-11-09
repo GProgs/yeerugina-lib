@@ -87,17 +87,8 @@ pub struct Command {
  * then we add a comma and space ,
  * then effect's Display does "smooth", 3200
  * and we finish off with ]}
- * and to_request() adds \r\n
+ * and we add \r\n in the lamp send_cmd
  */
-
-impl Command {
-    /// Get the command as a String, including all necessary parameters.
-    ///
-    /// The resulting String should be sent to the lamp through a TcpStream.
-    pub fn to_request(&self) -> String {
-        format!("{}\r\n", &self)
-    }
-}
 
 impl Action {
     /// Create a new Action for changing the color temperature of the lamp to some value.
