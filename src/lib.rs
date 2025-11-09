@@ -2,6 +2,8 @@
 
 /// Module for commands.
 pub mod cmd;
+/// Module for code related to interfacing with lamps.
+pub mod lamp;
 
 /*
 pub fn add(left: u64, right: u64) -> u64 {
