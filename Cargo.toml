@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+color = { version = "0.3.2", features = ["libm"] }
 derive_more = { version = "2.0.1", features = ["debug", "display"] }
 log = "0.4.28"
 strum = "0.27.2"

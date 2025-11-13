@@ -1,3 +1,4 @@
+use color::{ColorSpace, OpaqueColor, Rgba8};
 use derive_more::{Debug, Display};
 use log::info;
 use std::{fmt::Display, time::Duration};
@@ -122,6 +123,16 @@ impl Action {
         // We don't need to verify since we know that the largest byte is zero
         Self(InnerAction::SetRgb(rgb))
     }
+
+    /// Create a new Action for changing the color of the lamp to some RGB color.
+    ///
+    /// This function takes in an OpaqueColor.
+    pub fn new_rgb_from_opaque<T: ColorSpace>(color: OpaqueColor<T>) -> Self {
+        let Rgba8 { r, g, b, a: _ } = color.to_rgba8();
+        Self::new_rgb_from_parts(r, g, b)
+    }
+
+    // TODO research color::gradient() function, which returns a GradientIter.
 }
 
 impl Display for SmoothDuration {
@@ -219,5 +230,13 @@ mod tests {
         let rgb_2_right = Action::new_rgb_from_parts(166, 26, 58);
         assert_ne!(rgb_2_wrong, rgb_2_right);
         assert_eq!(rgb_1, rgb_2_right);
+    }
+
+    #[test]
+    fn rgb_opaque() {
+        let rgb_1 = Action::new_rgb_from_int(0xA61A3Au32);
+        let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
+        let rgb_2 = Action::new_rgb_from_opaque(ocol);
+        assert_eq!(rgb_1, rgb_2);
     }
 }
