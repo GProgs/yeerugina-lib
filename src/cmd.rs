@@ -118,10 +118,8 @@ impl Action {
     ///
     /// This function takes three u8 values representing the red, green, and blue channels.
     pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Self {
-        // TODO From<(u8,u8,u8)>
-        let rgb = u32::from_be_bytes([0x0, r, g, b]);
         // We don't need to verify since we know that the largest byte is zero
-        Self(InnerAction::SetRgb(rgb))
+        Self(InnerAction::SetRgb(u32::from_be_bytes([0x0, r, g, b])))
     }
 
     /// Create a new Action for changing the color of the lamp to some RGB color.
