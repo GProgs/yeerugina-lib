@@ -59,10 +59,10 @@ pub struct SmoothDuration(Duration);
 /// using [Effect]::from() or the into() method on a Duration.
 pub enum Effect {
     #[default]
-    #[display("\"sudden\"")]
+    #[display("\"sudden\", 0")]
     /// Change the lamp to the new state immediately.
     Sudden,
-    #[display("{_0}")]
+    #[display("\"smooth\", {_0}")]
     /// Smoothly fade into the new state over some [SmoothDuration].
     Smooth(#[debug("{}ms",_0.0.as_millis())] SmoothDuration), // print as millis
 }
@@ -126,7 +126,7 @@ impl Action {
 
 impl Display for SmoothDuration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\"smooth\", {}", self.0.as_millis())
+        write!(f, "{}", self.0.as_millis())
     }
 }
 
