@@ -1,7 +1,8 @@
 use log::debug;
 
-use std::io::{Read, Write};
+use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
 
 use crate::cmd::Command;
 
@@ -34,6 +35,46 @@ impl Lamp {
         let stream = TcpStream::connect(addr)?;
         debug!("Lamp | Connection Successful");
         Ok(Self { stream })
+    }
+
+    /// Create a new Lamp from an IP address (or several addresses), using a non-zero timeout period.
+    ///
+    /// As previously, the addr argument can be anything implementing the [`ToSocketAddrs`] trait.
+    /// The first successful connection will be used.
+    /// If no address provides a connection, the most recent (i.e. last) error will be returned.
+    pub fn connect_timeout<A: ToSocketAddrs>(addr: A, timeout: Duration) -> std::io::Result<Self> {
+        // Check that timeout is non-zero
+        if timeout.is_zero() {
+            debug!("Lamp | Zero timeout passed to connect_timeout");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Non-zero timeout Duration required",
+            ));
+        }
+        debug!("Lamp | Connecting with timeout");
+        // Keep track of the most recent error
+        // (inspired by std::sys::net::connection::each_addr function, which is used by TcpStream)
+        // (see https://doc.rust-lang.org/src/std/sys/net/connection/mod.rs.html)
+        let mut last_err = None;
+        // Get iterator of socket addresses
+        // And try each of them to see what works
+        for sock_addr in addr.to_socket_addrs()? {
+            // Try to connect
+            debug!("Lamp | Attempt connect_timeout");
+            let mby_stream = TcpStream::connect_timeout(&sock_addr, timeout);
+            match mby_stream {
+                Ok(stream) => {
+                    debug!("Lamp | Connection with timeout Successful");
+                    return Ok(Self { stream });
+                }
+                Err(e) => last_err = Some(e),
+            }
+        }
+        debug!("Lamp | Connection with timeout Failed");
+        match last_err {
+            Some(err) => Err(err),
+            None => Err(Error::new(ErrorKind::InvalidInput, "No addresses provided")),
+        }
     }
 
     /// Send a command to the lamp.
