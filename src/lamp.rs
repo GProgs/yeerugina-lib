@@ -1,4 +1,7 @@
 use log::debug;
+use pin_project::pin_project;
+use smol::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use smol::net::{AsyncToSocketAddrs, TcpStream as AsyncTcpStream};
 
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
@@ -101,5 +104,53 @@ impl Write for Lamp {
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.stream.flush()
+    }
+}
+
+#[pin_project]
+pub struct AsyncLamp {
+    #[pin]
+    pub stream: AsyncTcpStream,
+}
+
+impl AsyncLamp {
+    async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+        let stream = AsyncTcpStream::connect(addr).await?;
+        Ok(Self { stream })
+    }
+}
+
+// We needed pin-project so we can access the TcpStream inside of AsyncLamp
+impl AsyncRead for AsyncLamp {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        AsyncTcpStream::poll_read(self.project().stream, cx, buf)
+    }
+}
+
+impl AsyncWrite for AsyncLamp {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        AsyncTcpStream::poll_write(self.project().stream, cx, buf)
+    }
+
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        self.project().stream.poll_flush(cx)
+    }
+
+    fn poll_close(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        self.project().stream.poll_close(cx)
     }
 }
