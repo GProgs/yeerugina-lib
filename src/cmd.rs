@@ -1,6 +1,6 @@
-use color::{AlphaColor, ColorSpace, DynamicColor, OpaqueColor, PremulColor, Rgba8};
 use derive_more::{Debug, Display};
 use log::info;
+use rgb::RGB8;
 use std::{fmt::Display, time::Duration};
 
 /*
@@ -14,16 +14,6 @@ use std::{fmt::Display, time::Duration};
 
 // TODO: rewrite us to use https://lib.rs/crates/rgb instead of color crate
 // (this one is used by a bunch of crates) + palette crate can be used for adv color mgmt
-
-/// Trait indicating a struct that can be decomposed into RGB.
-///
-/// Any struct that can be represented by [`Rgba8`] from the color crate
-/// can implement this trait, enabling it to be used with
-/// Action::new_rgb_from_color().
-pub trait ToRgba8 {
-    /// Convert the color to sRGB.
-    fn to_rgba8(self) -> Rgba8;
-}
 
 #[derive(strum_macros::EnumDiscriminants)]
 #[strum(serialize_all = "snake_case")]
@@ -124,8 +114,24 @@ impl Action {
     /// Create a new Action for changing the color of the lamp to some RGB color.
     ///
     /// The largest byte of the u32 will be ignored.
-    pub fn new_rgb_from_int(rgb: u32) -> Self {
+    fn new_rgb_from_int(rgb: u32) -> Self {
         Self(InnerAction::SetRgb(rgb & 0x00FFFFFFu32))
+    }
+
+    /// Create a new Action for changing the color of the lamp to some RGB color.
+    ///
+    /// This function takes in anything that can be converted into an RGB struct of u8s.
+    pub fn new_rgb<T: Into<RGB8>>(color: T) -> Self {
+        let rgb_struct: RGB8 = color.into();
+        //let rgb_int: u32 = bytemuck::cast(rgb_struct);
+        let raw_slice: &[u8] = ::bytemuck::bytes_of(&rgb_struct); // native endian
+        let raw: [u8; 4] = [&[0], raw_slice] // pad w/ zeros
+            .concat()
+            .try_into()
+            .expect("Slice should have length 3");
+        let rgb_int = u32::from_be_bytes(raw);
+        //let rgb_int: u32 = (raw[0] as u32) << 16 + (raw[1] as u32) << 8 + (raw[2] as u32);
+        Self(InnerAction::SetRgb(rgb_int))
     }
 
     /// Create a new Action for changing the color of the lamp to some RGB color.
@@ -134,23 +140,6 @@ impl Action {
     pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Self {
         // We don't need to verify since we know that the largest byte is zero
         Self(InnerAction::SetRgb(u32::from_be_bytes([0x0, r, g, b])))
-    }
-
-    /// Create a new Action for changing the color of the lamp to some RGB color.
-    ///
-    /// This function takes in an OpaqueColor.
-    pub fn new_rgb_from_opaque<T: ColorSpace>(color: OpaqueColor<T>) -> Self {
-        let Rgba8 { r, g, b, a: _ } = color.to_rgba8();
-        Self::new_rgb_from_parts(r, g, b)
-    }
-
-    /// Create a new Action for changing the color of the lamp to some RGB color.
-    ///
-    /// This function takes in any struct that implements [`ToRgba8`],
-    /// that is, can be decomposed into red, green, and blue components.
-    pub fn new_rgb_from_color<T: ToRgba8>(color: T) -> Self {
-        let Rgba8 { r, g, b, a: _ } = color.to_rgba8();
-        Self::new_rgb_from_parts(r, g, b)
     }
 
     // TODO research color::gradient() function, which returns a GradientIter.
@@ -179,24 +168,6 @@ impl From<Duration> for Effect {
         } else {
             Self::Smooth(SmoothDuration::from(value))
         }
-    }
-}
-
-impl<T: ColorSpace> ToRgba8 for AlphaColor<T> {
-    fn to_rgba8(self) -> Rgba8 {
-        AlphaColor::to_rgba8(self)
-    }
-}
-
-impl<T: ColorSpace> ToRgba8 for OpaqueColor<T> {
-    fn to_rgba8(self) -> Rgba8 {
-        OpaqueColor::to_rgba8(self)
-    }
-}
-
-impl<T: ColorSpace> ToRgba8 for PremulColor<T> {
-    fn to_rgba8(self) -> Rgba8 {
-        self.un_premultiply().to_rgba8()
     }
 }
 
@@ -272,10 +243,66 @@ mod tests {
     }
 
     #[test]
-    fn rgb_opaque() {
+    fn rgb_bytemuck1() {
         let rgb_1 = Action::new_rgb_from_int(0xA61A3Au32);
-        let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
-        let rgb_2 = Action::new_rgb_from_opaque(ocol);
+        //let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
+        let col = RGB8 {
+            r: 0xA6,
+            g: 0x1A,
+            b: 0x3A,
+        };
+        // permute
+        let col_wrong = RGB8 {
+            r: col.b,
+            g: col.g,
+            b: col.r,
+        };
+        let col_wrong2 = RGB8 {
+            r: col.g,
+            g: col.b,
+            b: col.r,
+        };
+        let rgb_2 = Action::new_rgb(col);
+        let rgb_2_wrong = Action::new_rgb(col_wrong);
+        let rgb_2_wrong2 = Action::new_rgb(col_wrong2);
+        assert_ne!(rgb_2, rgb_2_wrong);
+        assert_ne!(rgb_2, rgb_2_wrong2);
+        assert_ne!(rgb_2_wrong, rgb_2_wrong2);
+
         assert_eq!(rgb_1, rgb_2);
+        assert_ne!(rgb_1, rgb_2_wrong);
+        assert_ne!(rgb_1, rgb_2_wrong2);
+    }
+
+    #[test]
+    fn rgb_bytemuck2() {
+        let rgb_1 = Action::new_rgb_from_int(0x00003Fu32);
+        //let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
+        let col = RGB8 {
+            r: 0x00,
+            g: 0x00,
+            b: 0x3F,
+        };
+        // permute
+        let col_wrong = RGB8 {
+            r: col.b,
+            g: col.g,
+            b: col.r,
+        };
+        let col_wrong2 = RGB8 {
+            r: col.g,
+            g: col.b,
+            b: col.r,
+        };
+        let rgb_2 = Action::new_rgb(col);
+        let rgb_2_wrong = Action::new_rgb(col_wrong);
+        let rgb_2_wrong2 = Action::new_rgb(col_wrong2);
+        assert_ne!(rgb_2, rgb_2_wrong);
+        assert_ne!(rgb_2, rgb_2_wrong2);
+        assert_ne!(rgb_2_wrong, rgb_2_wrong2);
+
+        assert_eq!(rgb_1, rgb_2);
+        assert_ne!(rgb_1, rgb_2_wrong);
+        assert_ne!(rgb_1, rgb_2_wrong2);
     }
 }
