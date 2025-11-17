@@ -107,13 +107,17 @@ impl Write for Lamp {
     }
 }
 
+/// TODO cba to write docs
+#[derive(Debug)]
 #[pin_project]
 pub struct AsyncLamp {
+    /// TODO cba to write docs
     #[pin]
     pub stream: AsyncTcpStream,
 }
 
 impl AsyncLamp {
+    /// TODO cba to write docs
     async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
         let stream = AsyncTcpStream::connect(addr).await?;
         Ok(Self { stream })
