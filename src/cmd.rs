@@ -1,5 +1,6 @@
 use derive_more::{Debug, Display};
 use log::info;
+use palette::{Clamp, Hsv};
 use rgb::RGB8;
 use std::{fmt::Display, time::Duration};
 
@@ -40,6 +41,15 @@ enum InnerAction {
     /// Generally, for a hex color #RRGGBB, you pass the integer 0x00{RR}{GG}{BB}.
     #[display("\"set_rgb\",\"params\":[{_0}")]
     SetRgb(#[debug("{_0:x}")] u32), // print as hex
+    /// Set the lamp to display a color by passing in a u16 and u8.
+    /// The u16, which must be within 0..360, represents the hue,
+    /// while the u8, which must be within 0..100, represents the saturation.
+    #[display("\"set_hsv\",\"params\":[{hue}, {sat}]")]
+    SetHsv {
+        #[debug("H{hue}S{sat}")]
+        hue: u16,
+        sat: u8,
+    },
 }
 
 /// The change that is done by a [Command].
@@ -140,6 +150,24 @@ impl Action {
     pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Self {
         // We don't need to verify since we know that the largest byte is zero
         Self(InnerAction::SetRgb(u32::from_be_bytes([0x0, r, g, b])))
+    }
+
+    /// Create a new Action for changing the color of the lamp to some HSV color.
+    pub fn new_hsv<T: Into<Hsv>>(color: T) -> Self {
+        let Hsv {
+            hue,
+            saturation: sat,
+            value: _,
+            standard: _,
+        } = color.into().clamp(); // Clamp to make sure values are in range
+        // Explanation:
+        // RgbHue gets converted to a f32 degree value, rounded to 0..360
+        // Sat ranges from 0 to 1, so that gets converted to percentages and rounded
+        // Both are casted to the appropriate data types.
+        Self(InnerAction::SetHsv {
+            hue: hue.into_positive_degrees().round() as u16,
+            sat: (100.0 * sat.round()) as u8,
+        })
     }
 
     // TODO research color::gradient() function, which returns a GradientIter.
