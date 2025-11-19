@@ -2,6 +2,7 @@ use derive_more::{Debug, Display};
 use log::info;
 use palette::{Clamp, Hsv};
 use rgb::RGB8;
+use serde::{Deserialize, Serialize};
 use std::{fmt::Display, time::Duration};
 
 /*
@@ -11,12 +12,29 @@ use std::{fmt::Display, time::Duration};
  * (so newtypes come AFTER the types they enclose)
  * - impls (e.g. impl Command)
  * - impl _ for _ (like Display, From<T>,...)
+ *
+ * Please add #[serde(transparent)] to newtype structs.
  */
 
 // TODO: rewrite us to use https://lib.rs/crates/rgb instead of color crate
 // (this one is used by a bunch of crates) + palette crate can be used for adv color mgmt
 
-#[derive(strum_macros::EnumDiscriminants)]
+/// A change done to a lamp.
+///
+/// This is the inner enum of [Action]. The commands that can be given to the lamp are defined here.
+/// The enum variants also contain data needed to accomplish these actions.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    strum_macros::Display,
+    strum_macros::EnumDiscriminants,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[strum_discriminants(derive(Display))]
 #[strum_discriminants(name(CommandKind))] // don't use default name
@@ -25,26 +43,17 @@ use std::{fmt::Display, time::Duration};
 #[strum_discriminants(
     doc = "They are derived from the [InnerAction] enum, but do not contain any values, and are publically available."
 )]
-/// A change done to a lamp.
-///
-/// This is the inner enum of [Action]. The commands that can be given to the lamp are defined here.
-/// The enum variants also contain data needed to accomplish these actions.
-#[derive(Clone, Copy, Debug, Display, PartialEq, Eq)]
-//#[display("\"method\":{_variant}")]
 enum InnerAction {
     /// Set the color temperature of the lamp to some number of kelvins.
-    #[display("\"set_ct_abx\",\"params\":[{_0}")]
     SetCtAbx(#[debug("{_0}K")] u16), // add kelvin unit
     /// Set the lamp to display a color by passing a u32.
     /// The eight smallest bits denote the blue value, then the following bytes denote green and red.
     /// For example, in order to set the lamp to display a purple color (RGB 165,26,234), you can pass 0xa61aeau32.
     /// Generally, for a hex color #RRGGBB, you pass the integer 0x00{RR}{GG}{BB}.
-    #[display("\"set_rgb\",\"params\":[{_0}")]
     SetRgb(#[debug("{_0:x}")] u32), // print as hex
     /// Set the lamp to display a color by passing in a u16 and u8.
     /// The u16, which must be within 0..360, represents the hue,
     /// while the u8, which must be within 0..100, represents the saturation.
-    #[display("\"set_hsv\",\"params\":[{hue}, {sat}]")]
     SetHsv {
         #[debug("H{hue}S{sat}")]
         hue: u16,
@@ -60,7 +69,8 @@ enum InnerAction {
 pub struct Method(#[debug("{_0:?}")] InnerAction);
 // remove prefix SmoothDuration() from Debug output
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 /// A newtype enclosing a [Duration].
 ///
 /// This is used to enforce the requirement that smooth transitions must last at least 30 milliseconds.
@@ -68,7 +78,8 @@ pub struct Method(#[debug("{_0:?}")] InnerAction);
 /// or alternatively, to call the into() method on a Duration.
 pub struct SmoothDuration(Duration);
 
-#[derive(Clone, Copy, Display, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Display, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 /// The transition between the current and new state of the lamp.
 ///
 /// In addition to constructing instances manually, Durations can be converted to [Effect](Effects)
@@ -87,8 +98,8 @@ pub enum Effect {
 ///
 /// Assuming you have a valid [Action] and [Effect], you can construct the [Command] struct yourself.
 /// What the command does is stored in the data field of [Command].
-#[derive(Clone, Copy, Display, Debug)]
-#[display(r#"{{"id":{id},"method":{action}, {eff}]}}"#)]
+#[derive(Clone, Copy, Display, Debug, Deserialize, Serialize)]
+#[display(r#"{{"id":{id},"method":{method}, {eff}]}}"#)]
 pub struct Command {
     /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
     pub method: Method,
