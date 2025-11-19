@@ -1,7 +1,8 @@
 use log::debug;
 use pin_project::pin_project;
-use smol::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use smol::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use smol::net::{AsyncToSocketAddrs, TcpStream as AsyncTcpStream};
+use smol::pin;
 
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
