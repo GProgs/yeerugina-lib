@@ -118,9 +118,19 @@ pub struct AsyncLamp {
 
 impl AsyncLamp {
     /// TODO cba to write docs
-    async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+    pub async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
         let stream = AsyncTcpStream::connect(addr).await?;
         Ok(Self { stream })
+    }
+
+    /// Send a command to the lamp using asynchronous I/O.
+    ///
+    /// This command takes in a reference to a [`Command`], and returns a Poll containing a Result.
+    pub async fn send_cmd(&mut self, cmd: &Command) -> std::io::Result<()> {
+        debug!("AsyncLamp | Sending command {cmd:?}");
+        let cmd_str = format!("{}\r\n", cmd);
+        let buf: &[u8] = cmd_str.as_bytes();
+        self.write(buf).await.map(|_| ()) // discard usize
     }
 }
 
