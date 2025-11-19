@@ -55,8 +55,9 @@ enum InnerAction {
 /// The change that is done by a [Command].
 ///
 /// This is a newtype struct enclosing an enum so that restrictions on values can be enforced.
-#[derive(Clone, Copy, Display, Debug, PartialEq, Eq)]
-pub struct Action(#[debug("{_0:?}")] InnerAction);
+#[derive(Clone, Copy, Display, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Method(#[debug("{_0:?}")] InnerAction);
 // remove prefix SmoothDuration() from Debug output
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -90,7 +91,7 @@ pub enum Effect {
 #[display(r#"{{"id":{id},"method":{action}, {eff}]}}"#)]
 pub struct Command {
     /// This field denotes the change done by [Command], along with other data, such as color temperature or RGB value.
-    pub action: Action,
+    pub method: Method,
     /// The transition (sudden or smooth) is represented by [Effect].
     pub eff: Effect,
     /// A integer used to distinguish between requests.
@@ -105,23 +106,23 @@ pub struct Command {
  * and we add \r\n in the lamp send_cmd
  */
 
-impl Action {
-    /// Create a new Action for changing the color temperature of the lamp to some value.
+impl Method {
+    /// Create a new Method for changing the color temperature of the lamp to some value.
     ///
     /// This method enforces the constraint 1700K <= ct <= 6500K.
     pub fn new_ct(ct: u16) -> Self {
         if ct < 1700 {
-            info!("Action | Clamping ct to 1700K");
+            info!("Method | Clamping ct to 1700K");
             Self(InnerAction::SetCtAbx(1700))
         } else if ct > 6500 {
-            info!("Action | Clamping ct to 6500K");
+            info!("Method | Clamping ct to 6500K");
             Self(InnerAction::SetCtAbx(6500))
         } else {
             Self(InnerAction::SetCtAbx(ct))
         }
     }
 
-    /// Create a new Action for changing the color of the lamp to some RGB color.
+    /// Create a new Method for changing the color of the lamp to some RGB color.
     ///
     /// The largest byte of the u32 will be ignored.
     fn new_rgb_from_int(rgb: u32) -> Self {
@@ -144,7 +145,7 @@ impl Action {
         Self(InnerAction::SetRgb(rgb_int))
     }
 
-    /// Create a new Action for changing the color of the lamp to some RGB color.
+    /// Create a new Method for changing the color of the lamp to some RGB color.
     ///
     /// This function takes three u8 values representing the red, green, and blue channels.
     pub fn new_rgb_from_parts(r: u8, g: u8, b: u8) -> Self {
@@ -152,7 +153,7 @@ impl Action {
         Self(InnerAction::SetRgb(u32::from_be_bytes([0x0, r, g, b])))
     }
 
-    /// Create a new Action for changing the color of the lamp to some HSV color.
+    /// Create a new Method for changing the color of the lamp to some HSV color.
     pub fn new_hsv<T: Into<Hsv>>(color: T) -> Self {
         let Hsv {
             hue,
@@ -255,24 +256,24 @@ mod tests {
 
     #[test]
     fn rgb_eq() {
-        let rgb_1 = Action::new_rgb_from_int(0xDEADFEu32);
-        let rgb_2 = Action::new_rgb_from_parts(222, 173, 254);
+        let rgb_1 = Method::new_rgb_from_int(0xDEADFEu32);
+        let rgb_2 = Method::new_rgb_from_parts(222, 173, 254);
         assert_eq!(rgb_1, rgb_2);
     }
 
     #[test]
     fn rgb_eqne() {
-        let rgb_1 = Action::new_rgb_from_int(0xA61A3Au32);
-        let rgb_2_wrong = Action::new_rgb_from_parts(58, 26, 166);
+        let rgb_1 = Method::new_rgb_from_int(0xA61A3Au32);
+        let rgb_2_wrong = Method::new_rgb_from_parts(58, 26, 166);
         assert_ne!(rgb_1, rgb_2_wrong);
-        let rgb_2_right = Action::new_rgb_from_parts(166, 26, 58);
+        let rgb_2_right = Method::new_rgb_from_parts(166, 26, 58);
         assert_ne!(rgb_2_wrong, rgb_2_right);
         assert_eq!(rgb_1, rgb_2_right);
     }
 
     #[test]
     fn rgb_bytemuck1() {
-        let rgb_1 = Action::new_rgb_from_int(0xA61A3Au32);
+        let rgb_1 = Method::new_rgb_from_int(0xA61A3Au32);
         //let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
         let col = RGB8 {
             r: 0xA6,
@@ -290,9 +291,9 @@ mod tests {
             g: col.b,
             b: col.r,
         };
-        let rgb_2 = Action::new_rgb(col);
-        let rgb_2_wrong = Action::new_rgb(col_wrong);
-        let rgb_2_wrong2 = Action::new_rgb(col_wrong2);
+        let rgb_2 = Method::new_rgb(col);
+        let rgb_2_wrong = Method::new_rgb(col_wrong);
+        let rgb_2_wrong2 = Method::new_rgb(col_wrong2);
         assert_ne!(rgb_2, rgb_2_wrong);
         assert_ne!(rgb_2, rgb_2_wrong2);
         assert_ne!(rgb_2_wrong, rgb_2_wrong2);
@@ -304,7 +305,7 @@ mod tests {
 
     #[test]
     fn rgb_bytemuck2() {
-        let rgb_1 = Action::new_rgb_from_int(0x00003Fu32);
+        let rgb_1 = Method::new_rgb_from_int(0x00003Fu32);
         //let ocol = OpaqueColor::from_rgb8(0xA6, 0x1A, 0x3A);
         let col = RGB8 {
             r: 0x00,
@@ -322,9 +323,9 @@ mod tests {
             g: col.b,
             b: col.r,
         };
-        let rgb_2 = Action::new_rgb(col);
-        let rgb_2_wrong = Action::new_rgb(col_wrong);
-        let rgb_2_wrong2 = Action::new_rgb(col_wrong2);
+        let rgb_2 = Method::new_rgb(col);
+        let rgb_2_wrong = Method::new_rgb(col_wrong);
+        let rgb_2_wrong2 = Method::new_rgb(col_wrong2);
         assert_ne!(rgb_2, rgb_2_wrong);
         assert_ne!(rgb_2, rgb_2_wrong2);
         assert_ne!(rgb_2_wrong, rgb_2_wrong2);
