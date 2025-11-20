@@ -7,6 +7,12 @@ pub mod cmd_new;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;
 
+mod derive_alias {
+    derive_aliases::define! {
+        Serde = ::serde::Serialize, ::serde::Deserialize;
+    }
+}
+
 /*
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

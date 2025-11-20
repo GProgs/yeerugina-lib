@@ -1,0 +1,1 @@
+*as_millis=serde_as(as = "DurationMilliSeconds<u64>")
