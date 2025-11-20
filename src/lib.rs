@@ -2,6 +2,8 @@
 
 /// Module for commands.
 pub mod cmd;
+#[allow(missing_docs)]
+pub mod cmd_new;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;
 
