@@ -1,15 +1,16 @@
 //! Library for controlling Yeelight lamps through Rust.
+use palette as _;
 
-/// Module for commands.
-pub mod cmd;
+/// Modules for commands.
 #[allow(missing_docs)]
-pub mod cmd_new;
+pub mod cmd;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;
 
 mod derive_alias {
     derive_aliases::define! {
         Serde = ::serde::Serialize, ::serde::Deserialize;
+        Eqs = ::std::cmp::PartialEq, ::std::cmp::Eq;
     }
 }
 
