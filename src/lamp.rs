@@ -85,9 +85,7 @@ impl Lamp {
     ///
     /// This command takes a reference to a [`Command`], so it does not consume the command.
     pub fn send_cmd(&mut self, cmd: &Command) -> std::io::Result<()> {
-        //self.stream.write
         debug!("Lamp | Sending command {cmd:?}");
-        //write!(self, "{}\r\n", cmd)
         let cmd_str = serde_json::to_string(cmd)?;
         write!(self, "{}\r\n", cmd_str)
     }
@@ -122,7 +120,9 @@ pub struct AsyncLamp {
 impl AsyncLamp {
     /// TODO cba to write docs
     pub async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+        debug!("AsyncLamp | Attempt connect");
         let stream = AsyncTcpStream::connect(addr).await?;
+        debug!("AsyncLamp | Connection Successful");
         Ok(Self { stream })
     }
 
@@ -131,7 +131,6 @@ impl AsyncLamp {
     /// This command takes in a reference to a [`Command`], and returns a Poll containing a Result.
     pub async fn send_cmd(&mut self, cmd: &Command) -> std::io::Result<()> {
         debug!("AsyncLamp | Sending command {cmd:?}");
-        //let cmd_str = format!("{}\r\n", cmd);
         let cmd_str = format!("{}\r\n", serde_json::to_string(cmd)?);
         let buf: &[u8] = cmd_str.as_ref();
         self.write(buf).await.map(|_| ()) // discard usize
