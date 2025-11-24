@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use derive_aliases::derive;
 use derive_more::Debug;
+use log::debug;
 use rgb::RGB8;
 use serde::{Deserialize, Serialize};
 use serde_with::DurationMilliSeconds;
@@ -66,10 +67,15 @@ pub struct Command {
     params: MethodData,
 }
 
+// The idea is that we enforce limits in the constructors.
 impl MethodData {
     pub fn new_set_ct_abx(ct: u16, data: &EffectDuration) -> Self {
+        let ct_clamp = ct.clamp(1700, 6500);
+        if ct != ct_clamp {
+            debug!("MethodData | Color temperature was clamped");
+        }
         Self(MethodInner::SetCtAbx(
-            ct,
+            ct_clamp,
             Effect::from(data),
             data.get_dur(),
         ))
