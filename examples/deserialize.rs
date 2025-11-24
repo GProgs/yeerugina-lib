@@ -1,3 +1,4 @@
+#![allow(missing_docs, unused_crate_dependencies, unused_extern_crates)]
 use std::{error::Error, time::Duration};
 use yeerugina_lib::cmd::{Command, EffectDuration, MethodData};
 
