@@ -55,7 +55,7 @@ pub struct MethodData(MethodInner);
 #[strum_discriminants(name(Effect))] // don't use default name
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[strum_discriminants(vis(pub))]
-pub enum EffectDuration {
+pub enum EffectAndDuration {
     Sudden,
     Smooth(#[attr_alias(as_millis)] Duration),
 }
@@ -69,7 +69,7 @@ pub struct Command {
 
 // The idea is that we enforce limits in the constructors.
 impl MethodData {
-    pub fn new_set_ct_abx(ct: u16, data: &EffectDuration) -> Self {
+    pub fn new_set_ct_abx(ct: u16, data: &EffectAndDuration) -> Self {
         let ct_clamp = ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("MethodData | Color temperature was clamped");
@@ -81,7 +81,7 @@ impl MethodData {
         ))
     }
 
-    pub fn new_set_rgb<T: Into<RGB8>>(color: T, data: &EffectDuration) -> Self {
+    pub fn new_set_rgb<T: Into<RGB8>>(color: T, data: &EffectAndDuration) -> Self {
         let RGB8 { r, g, b } = color.into();
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
         Self(MethodInner::SetRgb(
@@ -92,7 +92,7 @@ impl MethodData {
     }
 }
 
-impl EffectDuration {
+impl EffectAndDuration {
     // Here, we enforce the requirement that durations must be more than 30ms.
     pub fn get_dur(&self) -> Duration {
         match self {
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn create_smooth_zero_secs() {
-        let result = EffectDuration::Smooth(Duration::from_secs(0));
+        let result = EffectAndDuration::Smooth(Duration::from_secs(0));
         let result_dur = result.get_dur();
         assert_eq!(result.discriminant(), Effect::Smooth);
         assert_ne!(result.discriminant(), Effect::Sudden);
