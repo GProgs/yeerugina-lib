@@ -49,13 +49,14 @@ pub struct MethodData(MethodInner);
 
 #[attr_alias::eval]
 #[serde_as]
-#[derive(Debug, EnumDiscriminants, ..Eqs, ..Serde)]
+#[derive(Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(Display, Serialize, Deserialize))]
 #[strum_discriminants(name(Effect))] // don't use default name
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[strum_discriminants(vis(pub))]
 pub enum EffectAndDuration {
+    #[default]
     Sudden,
     Smooth(#[attr_alias(as_millis)] Duration),
 }
