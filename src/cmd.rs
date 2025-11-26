@@ -39,7 +39,8 @@ const MIN_DURATION: Duration = Duration::from_millis(30);
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
 pub(self) enum MethodInner {
     SetCtAbx(u16, Effect, #[attr_alias(as_millis)] Duration),
-    SetRgb(u32, Effect, Duration),
+    SetRgb(u32, Effect, #[attr_alias(as_millis)] Duration),
+    SetHsv(u16, u8, Effect, #[attr_alias(as_millis)] Duration),
 }
 
 /// Newtype struct containing the data of the command (method + parameters)
