@@ -13,3 +13,14 @@ mod derive_alias {
         Eqs = ::std::cmp::PartialEq, ::std::cmp::Eq;
     }
 }
+
+/*
+
+extern crate proc_macro;
+use proc_macro::TokenStream;
+
+#[proc_macro]
+pub fn duration_ms(_item: TokenStream) -> TokenStream {
+    r#"#[serde_as(as = "DurationMilliSeconds<u64>")]"#.parse().unwrap()
+}
+*/

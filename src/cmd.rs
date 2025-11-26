@@ -27,6 +27,15 @@ use strum_macros::{Display, EnumDiscriminants};
 
 const MIN_DURATION: Duration = Duration::from_millis(30);
 
+/*
+macro_rules! duration_ms {
+    () => {
+        #[attr_alias(as_millis)]
+        Duration
+    };
+}
+*/
+
 /// Private enum containing the methods that are available.
 ///
 /// This stores both the different methods "such as set_ct_abx"
