@@ -4,7 +4,6 @@ use derive_aliases::derive;
 use derive_more::Debug;
 use log::debug;
 use palette::Hsv;
-use palette::Srgb;
 use palette::angle::FromAngle;
 use palette::stimulus::IntoStimulus;
 use rgb::RGB8;
@@ -15,7 +14,7 @@ use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
 /* A short word about aliases:
- * #[attr_alias(as_millis)] tells serde to represent Durations as milliseconds.
+ * #[attr_alias(ms)] tells serde to represent Durations as milliseconds.
  * #[derive(..Serde)] derives Serialize and Deserialize.
  *
  * Enum discriminants need EXPLICIT derives - the alias won't work.
@@ -51,9 +50,9 @@ macro_rules! duration_ms {
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
 pub(self) enum MethodInner {
-    SetCtAbx(u16, Effect, #[attr_alias(as_millis)] Duration),
-    SetRgb(u32, Effect, #[attr_alias(as_millis)] Duration),
-    SetHsv(u16, u8, Effect, #[attr_alias(as_millis)] Duration),
+    SetCtAbx(u16, Effect, #[attr_alias(ms)] Duration),
+    SetRgb(u32, Effect, #[attr_alias(ms)] Duration),
+    SetHsv(u16, u8, Effect, #[attr_alias(ms)] Duration),
 }
 
 /// Newtype struct containing the data of the command (method + parameters)
@@ -72,7 +71,7 @@ pub struct MethodData(MethodInner);
 pub enum EffectAndDuration {
     #[default]
     Sudden,
-    Smooth(#[attr_alias(as_millis)] Duration),
+    Smooth(#[attr_alias(ms)] Duration),
 }
 
 #[derive(Debug, ..Serde)]
