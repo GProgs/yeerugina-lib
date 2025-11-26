@@ -12,15 +12,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::env::set_var("RUST_LOG", "debug");
     }
     colog::init();
-    let sleep_dur = Duration::from_secs(3);
 
     let id = 30u8;
     let eff = EffectAndDuration::Smooth(Duration::from_millis(1500));
-    let cmd_dat = MethodData::new_set_ct_abx(3600, &eff);
-    let cmd2_dat = MethodData::new_set_ct_abx(3000, &eff);
-    let cmd = Command::new(id, cmd_dat);
-    let cmd_2 = Command::new(id, cmd2_dat);
+    let cmd = Command::new(id, MethodData::new_set_ct_abx(3600, &eff));
+    let cmd2 = Command::new(id, MethodData::new_set_ct_abx(3000, &eff));
 
+    println!(
+        "1st command {}",
+        serde_json::to_string(&cmd).unwrap_or_default()
+    );
+    println!(
+        "2nd command {}",
+        serde_json::to_string(&cmd2).unwrap_or_default()
+    );
+
+    let sleep_dur = Duration::from_secs(3);
     {
         let mut lamp = Lamp::connect("192.168.1.3:55443")?;
         lamp.send_cmd(&cmd)?;
@@ -28,8 +35,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     sleep(sleep_dur);
     {
         let mut lamp = block_on(async { AsyncLamp::connect("192.168.1.3:55443").await })?;
-        block_on(async { lamp.send_cmd(&cmd_2).await })?;
+        block_on(async { lamp.send_cmd(&cmd2).await })?;
     }
     sleep(sleep_dur);
+
     Ok(())
 }
