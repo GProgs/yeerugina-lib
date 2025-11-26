@@ -3,6 +3,10 @@ use std::time::Duration;
 use derive_aliases::derive;
 use derive_more::Debug;
 use log::debug;
+use palette::Hsv;
+use palette::Srgb;
+use palette::angle::FromAngle;
+use palette::stimulus::IntoStimulus;
 use rgb::RGB8;
 use serde::{Deserialize, Serialize};
 use serde_with::DurationMilliSeconds;
@@ -78,7 +82,7 @@ impl MethodData {
         }
         Self(MethodInner::SetCtAbx(
             ct_clamp,
-            Effect::from(data),
+            data.discriminant(), //Effect::from(data),
             data.get_dur(),
         ))
     }
@@ -88,7 +92,31 @@ impl MethodData {
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
         Self(MethodInner::SetRgb(
             rgb_int,
-            Effect::from(data),
+            data.discriminant(),
+            data.get_dur(),
+        ))
+    }
+
+    pub fn new_set_hsv<S, T>(color: Hsv<S, T>, data: &EffectAndDuration) -> Self
+    where
+        T: IntoStimulus<f32>,
+        f32: FromAngle<T>,
+    {
+        let color_hsv: Hsv<S, f32> = color.into_format();
+        let Hsv {
+            hue,
+            saturation,
+            value: _,
+            standard: _,
+        } = color_hsv;
+        let scaled_hue: u16 = hue.into_positive_degrees() as u16; // as cast does flooring
+        let min_sat = Hsv::<S, f32>::min_saturation();
+        let scaled_sat: u8 =
+            ((saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
+        Self(MethodInner::SetHsv(
+            scaled_hue,
+            scaled_sat,
+            data.discriminant(),
             data.get_dur(),
         ))
     }
