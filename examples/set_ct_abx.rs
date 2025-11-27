@@ -2,7 +2,7 @@
 use smol::block_on;
 use std::{error::Error, thread::sleep, time::Duration};
 use yeerugina_lib::{
-    cmd::{Command, EffectAndDuration, MethodData},
+    cmd::{Command, Effect, Method},
     lamp::{AsyncLamp, Lamp},
 };
 
@@ -14,9 +14,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     colog::init();
 
     let id = 30u8;
-    let eff = EffectAndDuration::Smooth(Duration::from_millis(1500));
-    let cmd = Command::new(id, MethodData::new_set_ct_abx(3600, &eff));
-    let cmd2 = Command::new(id, MethodData::new_set_ct_abx(3000, &eff));
+    let eff = Effect::Smooth(Duration::from_millis(1500));
+    let cmd = Command::new(id, Method::new_set_ct_abx(3600, &eff));
+    let cmd2 = Command::new(id, Method::new_set_ct_abx(3000, &eff));
 
     println!(
         "1st command {}",

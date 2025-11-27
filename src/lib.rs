@@ -2,7 +2,6 @@
 use palette as _;
 
 /// Modules for commands.
-#[allow(missing_docs)]
 pub mod cmd;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;

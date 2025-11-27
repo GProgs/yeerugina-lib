@@ -45,67 +45,94 @@ macro_rules! duration_ms {
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
 #[strum_discriminants(derive(Serialize, Deserialize))]
-#[strum_discriminants(name(Method))] // don't use default name
+#[strum_discriminants(name(MethodKind))] // don't use default name
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
-pub(self) enum MethodInner {
-    SetCtAbx(u16, Effect, #[attr_alias(ms)] Duration),
-    SetRgb(u32, Effect, #[attr_alias(ms)] Duration),
-    SetHsv(u16, u8, Effect, #[attr_alias(ms)] Duration),
+pub(self) enum MethodTuple {
+    /// Set the color temperature of the lamp.
+    SetCtAbx(u16, EffectKind, #[attr_alias(ms)] Duration),
+    /// Set the RGB color of the lamp.
+    ///
+    /// Largest byte is zero, then comes the red channel, then green and blue.
+    SetRgb(u32, EffectKind, #[attr_alias(ms)] Duration),
+    /// Set the HSV color of the lamp.
+    ///
+    /// The hue is in 0..360, and saturation in 0..100.
+    SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
 }
 
-/// Newtype struct containing the data of the command (method + parameters)
+/// Newtype struct containing the data of the command (method + parameters).
+///
+/// Use the constructor methods, such as Method::new_set_ct_abx() or Method::new_set_hsv()
+/// to create instances of Method.
 #[derive(Debug, ..Serde)]
 #[serde(transparent)]
-pub struct MethodData(MethodInner);
+pub struct Method(MethodTuple);
 
+/// Public enum describing the way a command is applied.
+///
+/// A sudden transition means that the lamp changes color / state instantly,
+/// while a smooth transition means the lamp gradually fades into the new state.
+/// A smooth transition must last for at least 30 milliseconds. Any Durations less than this
+/// will get clamped to be equal to 30 ms. Note that instantiating a Effect::Smooth with a zero duration
+/// does NOT cause it to behave like a sudden transition.
 #[attr_alias::eval]
 #[serde_as]
 #[derive(Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(Display, Serialize, Deserialize))]
-#[strum_discriminants(name(Effect))] // don't use default name
+#[strum_discriminants(name(EffectKind))] // don't use default name
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[strum_discriminants(vis(pub))]
-pub enum EffectAndDuration {
+#[strum_discriminants(doc = "The two possible effect types; smooth and sudden transition.")]
+pub enum Effect {
+    /// Changes the color/state of the lamp instantly.
     #[default]
     Sudden,
+    /// Changes the color/state of the lamp gradually, over some time period.
     Smooth(#[attr_alias(ms)] Duration),
 }
 
+/// Struct describing a command that can be passed to the lamp.
+///
+/// This contains the elements needed to construct the command string using serde's serialization capabilities.
+/// Pass your id and Method (taking ownership) to the Command::new() constructor to instantiate a Command.
 #[derive(Debug, ..Serde)]
 pub struct Command {
     id: u8,
-    method: Method,
-    params: MethodData,
+    method: MethodKind,
+    params: Method,
 }
 
 // The idea is that we enforce limits in the constructors.
-impl MethodData {
-    pub fn new_set_ct_abx(ct: u16, data: &EffectAndDuration) -> Self {
+impl Method {
+    /// Create a new Method that sets the color temperature of the lamp.
+    pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
         let ct_clamp = ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("MethodData | Color temperature was clamped");
         }
-        Self(MethodInner::SetCtAbx(
+        Self(MethodTuple::SetCtAbx(
             ct_clamp,
-            data.discriminant(), //Effect::from(data),
-            data.get_dur(),
+            eff.discriminant(), //Effect::from(data),
+            eff.get_dur(),
         ))
     }
 
-    pub fn new_set_rgb<T: Into<RGB8>>(color: T, data: &EffectAndDuration) -> Self {
+    /// Create a new Method that sets the RGB color of the lamp.
+    pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
         let RGB8 { r, g, b } = color.into();
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
-        Self(MethodInner::SetRgb(
+        Self(MethodTuple::SetRgb(
             rgb_int,
-            data.discriminant(),
-            data.get_dur(),
+            eff.discriminant(),
+            eff.get_dur(),
         ))
     }
 
-    pub fn new_set_hsv<S, T>(color: Hsv<S, T>, data: &EffectAndDuration) -> Self
+    /// Create a new Method that sets the color of the lamp using the HSV system of colors.
+    pub fn new_set_hsv<S, T>(color: Hsv<S, T>, eff: &Effect) -> Self
     where
         T: IntoStimulus<f32>,
         f32: FromAngle<T>,
@@ -121,17 +148,20 @@ impl MethodData {
         let min_sat = Hsv::<S, f32>::min_saturation();
         let scaled_sat: u8 =
             ((saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
-        Self(MethodInner::SetHsv(
+        Self(MethodTuple::SetHsv(
             scaled_hue,
             scaled_sat,
-            data.discriminant(),
-            data.get_dur(),
+            eff.discriminant(),
+            eff.get_dur(),
         ))
     }
 }
 
-impl EffectAndDuration {
-    // Here, we enforce the requirement that durations must be more than 30ms.
+impl Effect {
+    /// Get the duration that will be passed on to the lamp.
+    ///
+    /// The main purpose of this method is to enforce the requirement
+    /// that the minimum smooth transition duration is 30 milliseconds.
     pub fn get_dur(&self) -> Duration {
         match self {
             Self::Sudden => Duration::ZERO,
@@ -141,7 +171,8 @@ impl EffectAndDuration {
 }
 
 impl Command {
-    pub fn new(id: u8, params: MethodData) -> Self {
+    /// Create a new Command by passing in the id and Method (i.e. change color temp or RGB color).
+    pub fn new(id: u8, params: Method) -> Self {
         // Enforce coherence through the constructor
         Self {
             id,
@@ -158,10 +189,10 @@ mod tests {
 
     #[test]
     fn create_smooth_zero_secs() {
-        let result = EffectAndDuration::Smooth(Duration::from_secs(0));
+        let result = Effect::Smooth(Duration::from_secs(0));
         let result_dur = result.get_dur();
-        assert_eq!(result.discriminant(), Effect::Smooth);
-        assert_ne!(result.discriminant(), Effect::Sudden);
+        assert_eq!(result.discriminant(), EffectKind::Smooth);
+        assert_ne!(result.discriminant(), EffectKind::Sudden);
         assert_eq!(result_dur, MIN_DURATION);
         assert_ne!(result_dur, Duration::ZERO);
     }
