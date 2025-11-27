@@ -75,8 +75,8 @@ pub struct Method(MethodTuple);
 /// A sudden transition means that the lamp changes color / state instantly,
 /// while a smooth transition means the lamp gradually fades into the new state.
 /// A smooth transition must last for at least 30 milliseconds. Any Durations less than this
-/// will get clamped to be equal to 30 ms. Note that instantiating a Effect::Smooth with a zero duration
-/// does NOT cause it to behave like a sudden transition.
+/// will get clamped to be equal to 30 ms. Passing a zero Duration makes this Effect
+/// behave like a sudden transition.
 #[attr_alias::eval]
 #[serde_as]
 #[derive(Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
@@ -107,28 +107,44 @@ pub struct Command {
 
 // The idea is that we enforce limits in the constructors.
 impl Method {
+    /// Get the effect that will be sent to the lamp.
+    ///
+    /// The idea here is that we "validate" the user input, and check whether the duration is zero.
+    /// If it is, convert it to a sudden transition.
+    /// For non-zero values, the duration gets clamped to min. 30 milliseconds.
+    /// Sudden transitions get a zero Duration as a placeholder, which gets ignored by the lamp.
+    fn process_usr_eff(usr_eff: &Effect) -> (EffectKind, Duration) {
+        if let Effect::Smooth(_dur) = usr_eff
+            && _dur.is_zero()
+        {
+            return (EffectKind::Sudden, Duration::ZERO);
+        }
+
+        (
+            usr_eff.discriminant(),
+            match usr_eff {
+                Effect::Sudden => Duration::ZERO,
+                Effect::Smooth(dur) => *dur.max(&MIN_DURATION),
+            },
+        )
+    }
+
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
+        let (kind, dur) = Self::process_usr_eff(eff);
         let ct_clamp = ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("MethodData | Color temperature was clamped");
         }
-        Self(MethodTuple::SetCtAbx(
-            ct_clamp,
-            eff.discriminant(), //Effect::from(data),
-            eff.get_dur(),
-        ))
+        Self(MethodTuple::SetCtAbx(ct_clamp, kind, dur))
     }
 
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
+        let (kind, dur) = Self::process_usr_eff(eff);
         let RGB8 { r, g, b } = color.into();
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
-        Self(MethodTuple::SetRgb(
-            rgb_int,
-            eff.discriminant(),
-            eff.get_dur(),
-        ))
+        Self(MethodTuple::SetRgb(rgb_int, kind, dur))
     }
 
     /// Create a new Method that sets the color of the lamp using the HSV system of colors.
@@ -137,6 +153,7 @@ impl Method {
         T: IntoStimulus<f32>,
         f32: FromAngle<T>,
     {
+        let (kind, dur) = Self::process_usr_eff(eff);
         let color_hsv: Hsv<S, f32> = color.into_format();
         let Hsv {
             hue,
@@ -148,25 +165,7 @@ impl Method {
         let min_sat = Hsv::<S, f32>::min_saturation();
         let scaled_sat: u8 =
             ((saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
-        Self(MethodTuple::SetHsv(
-            scaled_hue,
-            scaled_sat,
-            eff.discriminant(),
-            eff.get_dur(),
-        ))
-    }
-}
-
-impl Effect {
-    /// Get the duration that will be passed on to the lamp.
-    ///
-    /// The main purpose of this method is to enforce the requirement
-    /// that the minimum smooth transition duration is 30 milliseconds.
-    pub fn get_dur(&self) -> Duration {
-        match self {
-            Self::Sudden => Duration::ZERO,
-            Self::Smooth(dur) => *dur.max(&MIN_DURATION),
-        }
+        Self(MethodTuple::SetHsv(scaled_hue, scaled_sat, kind, dur))
     }
 }
 
@@ -190,7 +189,7 @@ mod tests {
     #[test]
     fn create_smooth_zero_secs() {
         let result = Effect::Smooth(Duration::from_secs(0));
-        let result_dur = result.get_dur();
+        let (_, result_dur) = Method::process_usr_eff(&result);
         assert_eq!(result.discriminant(), EffectKind::Smooth);
         assert_ne!(result.discriminant(), EffectKind::Sudden);
         assert_eq!(result_dur, MIN_DURATION);
