@@ -11,5 +11,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("new cmd debug {:?}", cmd);
     println!("new cmd json {}", serde_json::to_string(&cmd)?);
 
+    let eff_zero = Effect::Smooth(Duration::from_secs(0));
+    let cmd2_dat = Method::new_set_ct_abx(4200, &eff_zero);
+    let cmd2 = Command::new(id, cmd2_dat);
+
+    println!("zero command json {}", serde_json::to_string(&cmd2)?);
+
     Ok(())
 }
