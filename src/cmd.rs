@@ -53,6 +53,10 @@ pub(self) enum MethodTuple {
     ///
     /// The hue is in 0..360, and saturation in 0..100.
     SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
+    /// Toggle the lamp on/off.
+    ///
+    /// If the lamp is on, this turns it off, and vice versa.
+    Toggle(),
 }
 // attr_alias and serde_as: explained above.
 // serde: renaming s.t. we get "set_ct_abx" etc.
@@ -179,6 +183,11 @@ impl Method {
         let scaled_sat: u8 =
             (100.0 * (saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
         Self(MethodTuple::SetHsv(scaled_hue, scaled_sat, kind, dur))
+    }
+
+    /// Create a new Method that turns the lamp on if it was previously off, and vice versa.
+    pub fn new_toggle() -> Self {
+        Self(MethodTuple::Toggle())
     }
 }
 

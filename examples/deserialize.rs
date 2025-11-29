@@ -17,5 +17,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("zero command json {}", serde_json::to_string(&cmd2)?);
 
+    let toggler = Command::new(63, Method::new_toggle());
+    println!("Toggle with {}", serde_json::to_string(&toggler)?);
+
     Ok(())
 }
