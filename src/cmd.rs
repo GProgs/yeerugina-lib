@@ -13,27 +13,20 @@ use serde_with::serde_as;
 use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
+const MIN_DURATION: Duration = Duration::from_millis(30);
+
 /* A short word about aliases:
  * #[attr_alias(ms)] tells serde to represent Durations as milliseconds.
  * #[derive(..Serde)] derives Serialize and Deserialize.
  *
  * Enum discriminants need EXPLICIT derives - the alias won't work.
  *
- * If you want to represent a Duration as milliseconds, you will need to add attributes:
+ * If you want to represent a Duration as milliseconds,
+ * you will need to add these attributes to the enum:
  * #[attr_alias::eval]
  * #[serde_as]
+ * and add #[attr_alias(ms)] to the field you're dealing with.
  */
-
-const MIN_DURATION: Duration = Duration::from_millis(30);
-
-/*
-macro_rules! duration_ms {
-    () => {
-        #[attr_alias(as_millis)]
-        Duration
-    };
-}
-*/
 
 /// Private enum containing the methods that are available.
 ///
@@ -61,6 +54,11 @@ pub(self) enum MethodTuple {
     /// The hue is in 0..360, and saturation in 0..100.
     SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
 }
+// attr_alias and serde_as: explained above.
+// serde: renaming s.t. we get "set_ct_abx" etc.
+// and untagged s.t. we get the correct JSON representation.
+// strum_discriminants forward attributes to the MethodKind enum
+// (which comes from deriving strum_macros::EnumDiscriminants)
 
 /// Newtype struct containing the data of the command (method + parameters).
 ///
@@ -69,6 +67,8 @@ pub(self) enum MethodTuple {
 #[derive(Debug, ..Serde)]
 #[serde(transparent)]
 pub struct Method(MethodTuple);
+// serde(transparent) uses the serialization of MethodTuple
+// so this is truly a wrapper.
 
 /// Public enum describing the way a command is applied.
 ///
@@ -93,6 +93,9 @@ pub enum Effect {
     /// Changes the color/state of the lamp gradually, over some time period.
     Smooth(#[attr_alias(ms)] Duration),
 }
+// See explanation of MethodTuple.
+// The sudden transition is selected as the default (by me).
+// Here we derive equalities cos they make sense for effects.
 
 /// Struct describing a command that can be passed to the lamp.
 ///
@@ -114,12 +117,14 @@ impl Method {
     /// For non-zero values, the duration gets clamped to min. 30 milliseconds.
     /// Sudden transitions get a zero Duration as a placeholder, which gets ignored by the lamp.
     fn process_usr_eff(usr_eff: &Effect) -> (EffectKind, Duration) {
+        // Handle Smooth effects w/ zero duration
         if let Effect::Smooth(_dur) = usr_eff
             && _dur.is_zero()
         {
             return (EffectKind::Sudden, Duration::ZERO);
         }
 
+        // Sudden + Smooth w/ non-zero durations
         (
             usr_eff.discriminant(),
             match usr_eff {
@@ -128,6 +133,12 @@ impl Method {
             },
         )
     }
+
+    // For the constructors, I recommend using Self::process_usr_eff()
+    // to easily get the MethodKind and Duration
+    // which you will need to pass to the inner MethodTuple.
+    // Now, you may think that this is redundant when dealing with Sudden.
+    // However, we need a placeholder, otherwise the lamp won't accept the cmd.
 
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
@@ -142,7 +153,7 @@ impl Method {
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
         let (kind, dur) = Self::process_usr_eff(eff);
-        let RGB8 { r, g, b } = color.into();
+        let RGB8 { r, g, b } = color.into(); // w/e we have in, convert it to RGB8
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
         Self(MethodTuple::SetRgb(rgb_int, kind, dur))
     }
@@ -154,6 +165,7 @@ impl Method {
         f32: FromAngle<T>,
     {
         let (kind, dur) = Self::process_usr_eff(eff);
+        // colorspace is w/e, but we want f32
         let color_hsv: Hsv<S, f32> = color.into_format();
         let Hsv {
             hue,
@@ -162,9 +174,10 @@ impl Method {
             standard: _,
         } = color_hsv;
         let scaled_hue: u16 = hue.into_positive_degrees() as u16; // as cast does flooring
+        // Calculate the saturation as an int from 0 to 100:
         let min_sat = Hsv::<S, f32>::min_saturation();
         let scaled_sat: u8 =
-            ((saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
+            (100.0 * (saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
         Self(MethodTuple::SetHsv(scaled_hue, scaled_sat, kind, dur))
     }
 }
