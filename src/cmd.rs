@@ -53,6 +53,8 @@ pub(self) enum MethodTuple {
     ///
     /// The hue is in 0..360, and saturation in 0..100.
     SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
+    /// Set the brightness of the lamp to a percentage in 1..=100.
+    SetBright(u8, EffectKind, #[attr_alias(ms)] Duration),
     /// Toggle the lamp on/off.
     ///
     /// If the lamp is on, this turns it off, and vice versa.
@@ -183,6 +185,13 @@ impl Method {
         let scaled_sat: u8 =
             (100.0 * (saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
         Self(MethodTuple::SetHsv(scaled_hue, scaled_sat, kind, dur))
+    }
+
+    /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
+    pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
+        let (kind, dur) = Self::process_usr_eff(eff);
+        let bright = bright.clamp(1, 100);
+        Self(MethodTuple::SetBright(bright, kind, dur))
     }
 
     /// Create a new Method that turns the lamp on if it was previously off, and vice versa.
