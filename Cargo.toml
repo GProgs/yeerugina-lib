@@ -7,7 +7,7 @@ edition = "2024"
 attr_alias = "0.1.4"
 #bytemuck = "1.24.0"
 derive_aliases = "0.4.7"
-derive_more = { version = "2.0.1", features = ["debug", "display"] }
+derive_more = { version = "2.0.1", features = ["debug"] }
 log = "0.4.28"
 palette = { version = "0.7.6", default-features = false, features = ["libm"] }
 pin-project = "1.1.10"
