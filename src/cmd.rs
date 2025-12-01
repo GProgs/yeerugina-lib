@@ -13,7 +13,20 @@ use serde_with::serde_as;
 use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
+use crate::cmd::power::{Mode, Power};
+
 const MIN_DURATION: Duration = Duration::from_millis(30);
+
+/*
+ * Please follow this order:
+ * - traits
+ * - structs/enums, ordered s.t. dependencies are above dependents
+ * (so newtypes come AFTER the types they enclose)
+ * - impls (e.g. impl Command)
+ * - impl _ for _ (like Display, From<T>,...)
+ *
+ * Please add #[serde(transparent)] to newtype structs.
+ */
 
 /* A short word about aliases:
  * #[attr_alias(ms)] tells serde to represent Durations as milliseconds.
@@ -55,6 +68,13 @@ pub(self) enum MethodTuple {
     SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
     /// Set the brightness of the lamp to a percentage in 1..=100.
     SetBright(u8, EffectKind, #[attr_alias(ms)] Duration),
+    /// Power the lamp on/off.
+    SetPower(
+        Power,
+        EffectKind,
+        #[attr_alias(ms)] Duration,
+        #[serde(skip_serializing_if = "Option::is_none")] Option<Mode>,
+    ),
     /// Toggle the lamp on/off.
     ///
     /// If the lamp is on, this turns it off, and vice versa.
@@ -194,6 +214,12 @@ impl Method {
         Self(MethodTuple::SetBright(bright, kind, dur))
     }
 
+    /// Create a new Method that powers the lamp on or off.
+    pub fn new_set_power(power: Power, eff: &Effect, mode: Option<Mode>) -> Self {
+        let (kind, dur) = Self::process_usr_eff(eff);
+        Self(MethodTuple::SetPower(power, kind, dur, mode))
+    }
+
     /// Create a new Method that turns the lamp on if it was previously off, and vice versa.
     pub fn new_toggle() -> Self {
         Self(MethodTuple::Toggle())
@@ -210,6 +236,81 @@ impl Command {
             params,
         }
     }
+}
+
+/// Module containing an enum needed for the set_power command.
+pub mod power {
+    use derive_aliases::derive;
+    use derive_more::Debug;
+    //use serde::{Deserialize, Serialize};
+    use serde_repr::{Deserialize_repr, Serialize_repr};
+    //use strum_macros::{Display, EnumDiscriminants, EnumString};
+    use strum_macros::EnumString;
+
+    /// An enum describing the different modes the lamp can be set to upon powering it on.
+    ///
+    /// These are essentially just integers.
+    #[derive(Clone, Copy, Debug, Default, EnumString, ..Eqs, Serialize_repr, Deserialize_repr)]
+    #[repr(u8)]
+    #[strum(ascii_case_insensitive)]
+    pub enum Mode {
+        /// Normal turn on operation.
+        #[default]
+        Normal = 0,
+        /// Turn the lamp on and set it to display some color temperature.
+        Ct = 1,
+        /// Turn the lamp on to display an RGB color.
+        Rgb = 2,
+        /// Turn the lamp on to display a HSV color.
+        Hsv = 3,
+        /// Turn the lamp on and enable color flow mode.
+        ColorFlow = 4,
+        /// Turn the lamp on and set it to night light mode.
+        ///
+        /// Note that this mode is available only on ceiling lights.
+        NightLight = 5,
+    }
+
+    #[derive(Clone, Copy, Debug, EnumString, ..Eqs, ..Serde)]
+    #[serde(rename_all = "lowercase")]
+    #[strum(ascii_case_insensitive)]
+    /// The two power states: being on or off.
+    pub enum Power {
+        /// The lamp is on.
+        On,
+        /// The lamp is off.
+        Off,
+    }
+
+    impl From<bool> for Power {
+        fn from(value: bool) -> Self {
+            match value {
+                true => Self::On,
+                false => Self::Off,
+            }
+        }
+    }
+
+    // I wanted to enforce the constraint that when "power":"off",
+    // you wouldn't specify "mode". However, this would violate KISS.
+
+    /*
+
+    /// An enum describing the operation done by set_power.
+    ///
+    /// That is, the lamp can either be turned off or on, entering some mode.
+    #[derive(Debug, EnumDiscriminants, EnumString, ..Eqs, ..Serde)]
+    #[strum_discriminants(derive(Display, Serialize, Deserialize))]
+    #[strum_discriminants(name(Power))] // don't use default name
+    #[strum_discriminants(serde(rename_all = "lowercase"))]
+    #[strum_discriminants(vis(pub))]
+    #[strum_discriminants(doc = "The two possible power states: being off or being on.")]
+    pub enum PowerOp {
+        Off,
+        On(Option<Mode>),
+    }
+
+    */
 }
 
 #[cfg(test)]

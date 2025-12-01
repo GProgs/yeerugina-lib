@@ -1,6 +1,6 @@
 #![allow(missing_docs, unused_crate_dependencies, unused_extern_crates)]
 use std::{error::Error, time::Duration};
-use yeerugina_lib::cmd::{Command, Effect, Method};
+use yeerugina_lib::cmd::{Command, Effect, Method, power::Power};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let id = 30u8;
@@ -19,6 +19,19 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let toggler = Command::new(63, Method::new_toggle());
     println!("Toggle with {}", serde_json::to_string(&toggler)?);
+
+    let no_mode = Command::new(
+        11,
+        Method::new_set_power(
+            Power::from(true),
+            &eff,
+            Some(yeerugina_lib::cmd::power::Mode::ColorFlow),
+        ),
+    );
+    println!(
+        "This won't have a mode: {}",
+        serde_json::to_string(&no_mode)?
+    );
 
     Ok(())
 }
