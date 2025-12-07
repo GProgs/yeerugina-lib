@@ -2,13 +2,15 @@ use log::debug;
 use pin_project::pin_project;
 use smol::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use smol::net::{AsyncToSocketAddrs, TcpStream as AsyncTcpStream};
-use smol::pin;
+
+use smol::{Timer, pin};
 
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::thread;
 use std::time::Duration;
 
-use crate::cmd::Command;
+use crate::cmd::{self, Command};
 
 #[derive(Debug)]
 /// A struct that represents a Yeelight lamp.
@@ -28,7 +30,7 @@ pub struct Lamp {
 }
 // TcpStream will be dropped once we go out of scope
 
-impl Lamp {
+impl<'a> Lamp {
     /// Create a new Lamp from an IP address (or several addresses).
     ///
     /// The argument can be anything that implements [`ToSocketAddrs`], such as String, &str, or (&str, u16).
@@ -81,6 +83,8 @@ impl Lamp {
         }
     }
 
+    // TODO: we need a send_cmd method that blocks until we get a reply from the lamp.
+
     /// Send a command to the lamp.
     ///
     /// This command takes a reference to a [`Command`], so it does not consume the command.
@@ -88,6 +92,31 @@ impl Lamp {
         debug!("Lamp | Sending command {cmd:?}");
         let cmd_str = serde_json::to_string(cmd)?;
         write!(self, "{}\r\n", cmd_str)
+    }
+
+    /// Send a series of commands to the lamp.
+    ///
+    /// This command takes in anything that is an Iterator over references to Commands.
+    /// Additionally, it takes a duration denoting the time between commands.
+    /// Please note that dt denotes the time between SENDING commands,
+    /// so it does NOT take into account the time needed to run each command.
+    pub fn send_cmd_seq(
+        &mut self,
+        cmds: impl Iterator<Item = &'a Command>,
+        dt: Duration,
+    ) -> std::io::Result<()> {
+        if dt < cmd::MIN_DURATION {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "dt must not be less than the minimum allowed effect duration".to_string(),
+            ));
+        }
+        for cmd in cmds {
+            self.send_cmd(cmd)?;
+            thread::sleep(dt);
+        }
+
+        Ok(())
     }
 }
 
@@ -134,6 +163,28 @@ impl AsyncLamp {
         let cmd_str = format!("{}\r\n", serde_json::to_string(cmd)?);
         let buf: &[u8] = cmd_str.as_ref();
         self.write(buf).await.map(|_| ()) // discard usize
+    }
+
+    /// Send a series of commands to the lamp using asynchronous I/O.
+    ///
+    ///
+    pub async fn send_cmd_seq(
+        &mut self,
+        cmds: impl Iterator<Item = &Command>,
+        dt: Duration,
+    ) -> std::io::Result<()> {
+        if dt < cmd::MIN_DURATION {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "dt must not be less than the minimum allowed effect duration".to_string(),
+            ));
+        }
+        for cmd in cmds {
+            self.send_cmd(cmd).await?;
+            let _ = Timer::after(dt).await;
+        }
+
+        Ok(())
     }
 }
 

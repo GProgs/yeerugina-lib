@@ -15,7 +15,12 @@ use strum_macros::{Display, EnumDiscriminants};
 
 use crate::cmd::power::{Mode, Power};
 
-const MIN_DURATION: Duration = Duration::from_millis(30);
+/// The shortest smooth transition supported by the lamp.
+///
+/// Note that it is possible to instantiate Effects with durations less than this.
+/// However, when Commands using these get passed to the Lamp, the short durations
+/// will get clamped to be equal to MIN_DURATION.
+pub const MIN_DURATION: Duration = Duration::from_millis(30);
 
 /*
  * Please follow this order:
