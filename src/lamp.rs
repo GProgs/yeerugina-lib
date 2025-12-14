@@ -36,7 +36,7 @@ impl<'a> Lamp {
     /// The argument can be anything that implements [`ToSocketAddrs`], such as String, &str, or (&str, u16).
     /// You can pass multiple addresses into the method, and the TcpStream will use the first successful connection.
     /// If no address provides a connection, the most recent (i.e. last) error will be returned.
-    pub fn connect<A: ToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+    pub fn connect<A: ToSocketAddrs>(addr: A) -> io::Result<Self> {
         debug!("Lamp | Attempt connect");
         let stream = TcpStream::connect(addr)?;
         debug!("Lamp | Connection Successful");
@@ -48,7 +48,7 @@ impl<'a> Lamp {
     /// As previously, the addr argument can be anything implementing the [`ToSocketAddrs`] trait.
     /// The first successful connection will be used.
     /// If no address provides a connection, the most recent (i.e. last) error will be returned.
-    pub fn connect_timeout<A: ToSocketAddrs>(addr: A, timeout: Duration) -> std::io::Result<Self> {
+    pub fn connect_timeout<A: ToSocketAddrs>(addr: A, timeout: Duration) -> io::Result<Self> {
         // Check that timeout is non-zero
         if timeout.is_zero() {
             debug!("Lamp | Zero timeout passed to connect_timeout");
@@ -88,7 +88,7 @@ impl<'a> Lamp {
     /// Send a command to the lamp.
     ///
     /// This command takes a reference to a [`Command`], so it does not consume the command.
-    pub fn send_cmd(&mut self, cmd: &Command) -> std::io::Result<()> {
+    pub fn send_cmd(&mut self, cmd: &Command) -> io::Result<()> {
         debug!("Lamp | Sending command {cmd:?}");
         let cmd_str = serde_json::to_string(cmd)?;
         write!(self, "{}\r\n", cmd_str)
@@ -104,7 +104,7 @@ impl<'a> Lamp {
         &mut self,
         cmds: impl Iterator<Item = &'a Command>,
         dt: Duration,
-    ) -> std::io::Result<()> {
+    ) -> io::Result<()> {
         if dt < cmd::MIN_DURATION {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -122,17 +122,17 @@ impl<'a> Lamp {
 
 // Delegate reading/writing to the internal stream.
 impl Read for Lamp {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.stream.read(buf)
     }
 }
 
 impl Write for Lamp {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.stream.write(buf)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
 }
@@ -148,7 +148,7 @@ pub struct AsyncLamp {
 
 impl AsyncLamp {
     /// TODO cba to write docs
-    pub async fn connect<A: AsyncToSocketAddrs>(addr: A) -> std::io::Result<Self> {
+    pub async fn connect<A: AsyncToSocketAddrs>(addr: A) -> io::Result<Self> {
         debug!("AsyncLamp | Attempt connect");
         let stream = AsyncTcpStream::connect(addr).await?;
         debug!("AsyncLamp | Connection Successful");
@@ -158,7 +158,7 @@ impl AsyncLamp {
     /// Send a command to the lamp using asynchronous I/O.
     ///
     /// This command takes in a reference to a [`Command`], and returns a Poll containing a Result.
-    pub async fn send_cmd(&mut self, cmd: &Command) -> std::io::Result<()> {
+    pub async fn send_cmd(&mut self, cmd: &Command) -> io::Result<()> {
         debug!("AsyncLamp | Sending command {cmd:?}");
         let cmd_str = format!("{}\r\n", serde_json::to_string(cmd)?);
         let buf: &[u8] = cmd_str.as_ref();
@@ -172,7 +172,7 @@ impl AsyncLamp {
         &mut self,
         cmds: impl Iterator<Item = &Command>,
         dt: Duration,
-    ) -> std::io::Result<()> {
+    ) -> io::Result<()> {
         if dt < cmd::MIN_DURATION {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -194,7 +194,7 @@ impl AsyncRead for AsyncLamp {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut [u8],
-    ) -> std::task::Poll<std::io::Result<usize>> {
+    ) -> std::task::Poll<io::Result<usize>> {
         AsyncTcpStream::poll_read(self.project().stream, cx, buf)
     }
 }
@@ -204,21 +204,21 @@ impl AsyncWrite for AsyncLamp {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &[u8],
-    ) -> std::task::Poll<std::io::Result<usize>> {
+    ) -> std::task::Poll<io::Result<usize>> {
         AsyncTcpStream::poll_write(self.project().stream, cx, buf)
     }
 
     fn poll_flush(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    ) -> std::task::Poll<io::Result<()>> {
         self.project().stream.poll_flush(cx)
     }
 
     fn poll_close(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    ) -> std::task::Poll<io::Result<()>> {
         self.project().stream.poll_close(cx)
     }
 }

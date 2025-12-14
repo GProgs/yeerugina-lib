@@ -147,7 +147,7 @@ impl Method {
     /// If it is, convert it to a sudden transition.
     /// For non-zero values, the duration gets clamped to min. 30 milliseconds.
     /// Sudden transitions get a zero Duration as a placeholder, which gets ignored by the lamp.
-    fn process_usr_eff(usr_eff: &Effect) -> (EffectKind, Duration) {
+    fn unzip_effect(usr_eff: &Effect) -> (EffectKind, Duration) {
         // Handle Smooth effects w/ zero duration
         if let Effect::Smooth(_dur) = usr_eff
             && _dur.is_zero()
@@ -173,17 +173,17 @@ impl Method {
 
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
-        let (kind, dur) = Self::process_usr_eff(eff);
+        let (kind, dur) = Self::unzip_effect(eff);
         let ct_clamp = ct.clamp(1700, 6500);
         if ct != ct_clamp {
-            debug!("MethodData | Color temperature was clamped");
+            debug!("Method | Color temperature was clamped");
         }
         Self(MethodTuple::SetCtAbx(ct_clamp, kind, dur))
     }
 
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
-        let (kind, dur) = Self::process_usr_eff(eff);
+        let (kind, dur) = Self::unzip_effect(eff);
         let RGB8 { r, g, b } = color.into(); // w/e we have in, convert it to RGB8
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
         Self(MethodTuple::SetRgb(rgb_int, kind, dur))
@@ -195,7 +195,7 @@ impl Method {
         T: IntoStimulus<f32>,
         f32: FromAngle<T>,
     {
-        let (kind, dur) = Self::process_usr_eff(eff);
+        let (kind, dur) = Self::unzip_effect(eff);
         // colorspace is w/e, but we want f32
         let color_hsv: Hsv<S, f32> = color.into_format();
         let Hsv {
@@ -214,14 +214,14 @@ impl Method {
 
     /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
     pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
-        let (kind, dur) = Self::process_usr_eff(eff);
+        let (kind, dur) = Self::unzip_effect(eff);
         let bright = bright.clamp(1, 100);
         Self(MethodTuple::SetBright(bright, kind, dur))
     }
 
     /// Create a new Method that powers the lamp on or off.
     pub fn new_set_power(power: Power, eff: &Effect, mode: Option<Mode>) -> Self {
-        let (kind, dur) = Self::process_usr_eff(eff);
+        let (kind, dur) = Self::unzip_effect(eff);
         Self(MethodTuple::SetPower(power, kind, dur, mode))
     }
 
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn create_smooth_zero_secs() {
         let result = Effect::Smooth(Duration::from_secs(0));
-        let (_, result_dur) = Method::process_usr_eff(&result);
+        let (_, result_dur) = Method::unzip_effect(&result);
         assert_eq!(result.discriminant(), EffectKind::Smooth);
         assert_ne!(result.discriminant(), EffectKind::Sudden);
         assert_eq!(result_dur, MIN_DURATION);
