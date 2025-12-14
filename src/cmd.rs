@@ -134,7 +134,11 @@ pub enum Effect {
 /// Pass your id and Method (taking ownership) to the Command::new() constructor to instantiate a Command.
 #[derive(Debug, ..Serde)]
 pub struct Command {
-    id: u8,
+    /// A (non)unique ID that identifies the command.
+    ///
+    /// When the lamp responds to a command, the same ID will be included in the response.
+    /// This can be used to distinguish between multiple successive commands and their responses.
+    pub id: u8,
     method: MethodKind,
     params: Method,
 }

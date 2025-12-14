@@ -1,12 +1,16 @@
 use log::debug;
 use pin_project::pin_project;
+use regex::Regex;
 use smol::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use smol::net::{AsyncToSocketAddrs, TcpStream as AsyncTcpStream};
 
 use smol::{Timer, pin};
 
-use std::io::{Error, ErrorKind, Read, Write};
+use std::io;
+use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::num::ParseIntError;
+use std::sync::LazyLock;
 use std::thread;
 use std::time::Duration;
 
@@ -117,6 +121,80 @@ impl<'a> Lamp {
         }
 
         Ok(())
+    }
+
+    /// Send a command to the lamp and verify the response.
+    ///
+    ///
+    pub fn send_and_read(&mut self, cmd: &Command) -> io::Result<String> {
+        debug!("Lamp | Attempt send_and_read");
+
+        // Implicit debug
+        self.send_cmd(cmd)?;
+
+        debug!("Lamp | Create BufReader for &self.stream");
+        let mut reader = BufReader::new(&self.stream);
+
+        debug!("Lamp | Create response buffer");
+        let mut resp_buf: Vec<u8> = Vec::new();
+
+        let resp_size = reader.read_until(b'\r', &mut resp_buf)?;
+        debug!("Read {resp_size} bytes");
+
+        let resp_str = String::from_utf8(resp_buf).map_err(Error::other)?;
+
+        Self::verify_resp(cmd, resp_str.as_str()).map_err(Error::other)
+        // Delegate verification to cmd
+        //Self::verify_resp(cmd, resp_buf)
+        /*
+        let matching_id = if let Ok(resp) = mby_resp {
+            resp.eq(&String::from("foobar"))
+        } else {
+            false
+        };
+        */
+    }
+
+    /// Verify that the response contained in resp_buf has the same ID as this command.
+    fn verify_resp(cmd: &Command, resp_str_slice: &str) -> Result<String, String> {
+        static RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#"\{"id":(\d{1,3}),"result":\[(["\w\s]+)\]\}"#).unwrap());
+        let caps = RE
+            .captures(resp_str_slice)
+            .ok_or(String::from("String slice not matching"))?;
+        let resp_id: u8 = caps
+            .get(0)
+            .unwrap() // guaranteed to return Some(...)
+            .as_str()
+            .parse()
+            .map_err(|e: ParseIntError| e.to_string())?;
+        if resp_id != cmd.id {
+            return Err(String::from("Incorrect response ID"));
+        }
+        let resp_result = String::from(
+            caps.get(1)
+                .ok_or(String::from("No result match found"))?
+                .as_str(),
+        );
+        Ok(resp_result)
+        /*
+        let id_str = cmd.id.to_string();
+        let id_seq: &[u8] = id_str.as_bytes();
+        let mut slider = resp_buf.windows(2);
+        let idx = slider.position(|seq| seq == id_seq);
+        idx.is_some()
+        */
+        /*
+        match String::from_utf8(resp_buf) {
+            Ok(resp) => true,
+            Err(e) => {
+                warn!("Cmd | UTF8 parse failed: {e}");
+                let t = self.id.to_string().as_bytes();
+                let w = resp_buf.windows(2);
+                false
+            }
+        }
+        */
     }
 }
 
