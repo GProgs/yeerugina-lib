@@ -143,7 +143,7 @@ impl<'a> Lamp {
 
         let resp_str = String::from_utf8(resp_buf).map_err(Error::other)?;
 
-        Self::verify_resp(cmd, resp_str.as_str()).map_err(Error::other)
+        Self::verify_resp(cmd, &resp_str).map_err(Error::other)
         // Delegate verification to cmd
         //Self::verify_resp(cmd, resp_buf)
         /*
@@ -156,11 +156,11 @@ impl<'a> Lamp {
     }
 
     /// Verify that the response contained in resp_buf has the same ID as this command.
-    fn verify_resp(cmd: &Command, resp_str_slice: &str) -> Result<String, String> {
+    fn verify_resp(cmd: &Command, resp_str: &String) -> Result<String, String> {
         static RE: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r#"\{"id":(\d{1,3}),"result":\[(["\w\s]+)\]\}"#).unwrap());
         let caps = RE
-            .captures(resp_str_slice)
+            .captures(resp_str)
             .ok_or(String::from("String slice not matching"))?;
         let resp_id: u8 = caps
             .get(0)
