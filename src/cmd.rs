@@ -322,6 +322,38 @@ pub mod power {
     */
 }
 
+pub mod scene {
+    use derive_aliases::derive;
+    use derive_more::Debug;
+    use strum_macros::EnumString;
+
+    #[derive(Clone, Copy, Debug, EnumString, ..Serde)]
+    #[serde(rename_all = "lowercase")]
+    #[strum(ascii_case_insensitive)]
+    pub enum Class {
+        Color,
+        Hsv,
+        Ct,
+        Cf,
+        AutoDelayOff,
+    }
+}
+
+pub mod adjust {
+
+    pub enum Action {
+        Increase,
+        Decrease,
+        Circle,
+    }
+
+    pub enum Prop {
+        Bright,
+        Ct,
+        Color,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
