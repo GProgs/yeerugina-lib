@@ -4,29 +4,8 @@ use derive_aliases::derive;
 use derive_more::Debug;
 use log::debug;
 use rgb::RGB8;
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use strum_macros::EnumString;
 
 use crate::{clamp_brightness, clamp_colortemp, clamp_duration};
-
-#[derive(Clone, Copy, Debug, Default, EnumString, ..Eqs, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
-#[strum(ascii_case_insensitive)]
-/// This enum defines the variable that is changed by a flow tuple.
-///
-/// A flow tuple can change the color or color temperature of the lamp.
-/// Setting the brightness is included in every flow tuple.
-pub enum CfMode {
-    /// Set the lamp to have a certain color.
-    Color = 1,
-    /// Set the lamp to have a certain color temperature.
-    Ct = 2,
-    /// Do not do anything (i.e. keep the current state).
-    ///
-    /// This can be thought of as a NOP instruction.
-    #[default]
-    Sleep = 7,
-}
 
 #[derive(Debug, ..Eqs, ..Serde)]
 pub(self) enum CfExpression {
