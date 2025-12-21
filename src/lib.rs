@@ -1,7 +1,11 @@
 //! Library for controlling Yeelight lamps through Rust.
 
+#![feature(duration_constants)]
+
 /// Modules for commands.
 pub mod cmd;
+/// Module for color flows.
+pub mod colorflow;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;
 
