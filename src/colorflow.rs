@@ -8,9 +8,17 @@ use rgb::RGB8;
 use crate::{clamp_brightness, clamp_colortemp, clamp_duration};
 
 #[derive(Debug, ..Eqs, ..Serde)]
+/// An enum containing the data needed for a flow tuple.
 pub(self) enum CfExpression {
+    /// Set the color to some value.
+    ///
+    /// Duration, color, brightness.
     Color(Duration, u32, u8),
+    /// Set the color temperature.
+    ///
+    /// Duration, color temp, brightness.
     Ct(Duration, u16, u8),
+    /// Sleep (i.e. don't do anything).
     Sleep(Duration),
 }
 
@@ -21,7 +29,15 @@ pub(self) enum CfExpression {
 ///
 /// FlowTuple::default() will return a sleep of one second.
 #[derive(Debug, Default, ..Eqs, ..Serde)]
+#[serde(transparent)]
 pub struct FlowTuple(CfExpression);
+
+/// Newtype struct containing a Vector of flow tuples.
+///
+/// Provided for convenience.
+#[derive(Debug, Default, ..Serde)]
+#[serde(transparent)]
+pub struct ColorFlow(pub Vec<FlowTuple>);
 
 impl FlowTuple {
     /// Clamp the duration and brightness to appropriate values.
@@ -80,5 +96,23 @@ impl Display for CfExpression {
             Self::Ct(dur, ct, bri) => write!(f, "{},2,{},{}", dur.as_millis(), ct, bri),
             Self::Sleep(dur) => write!(f, "{},7,0,0", dur.as_millis()),
         }
+    }
+}
+
+impl Display for FlowTuple {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f) // delegate to contained value
+    }
+}
+
+impl Display for ColorFlow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cf_string = self
+            .0
+            .iter()
+            .map(FlowTuple::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        write!(f, "{}", cf_string)
     }
 }
