@@ -13,14 +13,9 @@ use serde_with::serde_as;
 use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
-use crate::cmd::power::{Mode, Power};
-
-/// The shortest smooth transition supported by the lamp.
-///
-/// Note that it is possible to instantiate Effects with durations less than this.
-/// However, when Commands using these get passed to the Lamp, the short durations
-/// will get clamped to be equal to MIN_DURATION.
-pub const MIN_DURATION: Duration = Duration::from_millis(30);
+use crate::clamp_brightness;
+use crate::clamp_colortemp;
+use crate::clamp_duration;
 
 /*
  * Please follow this order:
@@ -164,7 +159,7 @@ impl Method {
             usr_eff.discriminant(),
             match usr_eff {
                 Effect::Sudden => Duration::ZERO,
-                Effect::Smooth(dur) => *dur.max(&MIN_DURATION),
+                Effect::Smooth(dur) => clamp_duration(*dur), //*dur.max(&MIN_DURATION),
             },
         )
     }
@@ -178,7 +173,7 @@ impl Method {
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
         let (kind, dur) = Self::unzip_effect(eff);
-        let ct_clamp = ct.clamp(1700, 6500);
+        let ct_clamp = clamp_colortemp(ct); //ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("Method | Color temperature was clamped");
         }
@@ -219,7 +214,7 @@ impl Method {
     /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
     pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
         let (kind, dur) = Self::unzip_effect(eff);
-        let bright = bright.clamp(1, 100);
+        let bright = clamp_brightness(bright); //bright.clamp(1, 100);
         Self(MethodTuple::SetBright(bright, kind, dur))
     }
 
@@ -357,6 +352,7 @@ pub mod adjust {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MIN_DURATION;
     use pretty_assertions::{assert_eq, assert_ne};
 
     #[test]
