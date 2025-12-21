@@ -1,6 +1,9 @@
 #![allow(missing_docs, unused_crate_dependencies, unused_extern_crates)]
 use std::{error::Error, time::Duration};
-use yeerugina_lib::cmd::{Command, Effect, Method, power::Power};
+use yeerugina_lib::cmd::{
+    Command, Effect, Method,
+    aux::{PowerMode, PowerOnOff},
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let id = 30u8;
@@ -22,11 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let no_mode = Command::new(
         11,
-        Method::new_set_power(
-            Power::from(true),
-            &eff,
-            Some(yeerugina_lib::cmd::power::Mode::ColorFlow),
-        ),
+        Method::new_set_power(PowerOnOff::from(true), &eff, Some(PowerMode::ColorFlow)),
     );
     println!(
         "This won't have a mode: {}",

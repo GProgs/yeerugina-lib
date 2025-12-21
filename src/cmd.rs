@@ -70,15 +70,17 @@ pub(self) enum MethodTuple {
     SetBright(u8, EffectKind, #[attr_alias(ms)] Duration),
     /// Power the lamp on/off.
     SetPower(
-        Power,
+        aux::PowerOnOff,
         EffectKind,
         #[attr_alias(ms)] Duration,
-        #[serde(skip_serializing_if = "Option::is_none")] Option<Mode>,
+        #[serde(skip_serializing_if = "Option::is_none")] Option<aux::PowerMode>,
     ),
     /// Toggle the lamp on/off.
     ///
     /// If the lamp is on, this turns it off, and vice versa.
     Toggle(),
+    /// Apply a certain state to the lamp, turning it on if needed.
+    SetScene(aux::SceneClass),
 }
 // attr_alias and serde_as: explained above.
 // serde: renaming s.t. we get "set_ct_abx" etc.
@@ -219,7 +221,11 @@ impl Method {
     }
 
     /// Create a new Method that powers the lamp on or off.
-    pub fn new_set_power(power: Power, eff: &Effect, mode: Option<Mode>) -> Self {
+    pub fn new_set_power(
+        power: aux::PowerOnOff,
+        eff: &Effect,
+        mode: Option<aux::PowerMode>,
+    ) -> Self {
         let (kind, dur) = Self::unzip_effect(eff);
         Self(MethodTuple::SetPower(power, kind, dur, mode))
     }
@@ -227,6 +233,11 @@ impl Method {
     /// Create a new Method that turns the lamp on if it was previously off, and vice versa.
     pub fn new_toggle() -> Self {
         Self(MethodTuple::Toggle())
+    }
+
+    /// Create a new Method that sets the lamp to a certain state.
+    pub fn new_set_scene(_class: aux::SceneClass) -> Self {
+        todo!()
     }
 }
 
@@ -242,14 +253,35 @@ impl Command {
     }
 }
 
-/// Module containing an enum needed for the set_power command.
-pub mod power {
+/// Module containing auxiliary variables.
+///
+/// These include such variables as:
+/// - modes for the set_power command
+/// - scene classes for the set_scene command
+/// - adjustments for the set_adjust command
+pub mod aux {
     use derive_aliases::derive;
     use derive_more::Debug;
-    //use serde::{Deserialize, Serialize};
+    use serde::{Deserialize, Serialize};
     use serde_repr::{Deserialize_repr, Serialize_repr};
-    //use strum_macros::{Display, EnumDiscriminants, EnumString};
-    use strum_macros::EnumString;
+    use strum_macros::{Display, EnumDiscriminants, EnumString};
+
+    /*
+    If possible, please name the following objects as:
+    (command)(variable), so for instance:
+    PowerMode, SceneClass, AdjustAction, AdjustProp
+
+    Please follow this order:
+    - traits
+    - structs/enums, ordered s.t. dependencies are above dependents
+    (so newtypes come AFTER the types they enclose)
+    When there are no dependencies, use the order of the commands
+    as defined in the Yeelight specification.
+    - impls (e.g. impl Command)
+    - impl _ for _ (like Display, From<T>,...)
+
+    Please add #[serde(transparent)] to newtype structs.
+    */
 
     /// An enum describing the different modes the lamp can be set to upon powering it on.
     ///
@@ -257,7 +289,7 @@ pub mod power {
     #[derive(Clone, Copy, Debug, Default, EnumString, ..Eqs, Serialize_repr, Deserialize_repr)]
     #[repr(u8)]
     #[strum(ascii_case_insensitive)]
-    pub enum Mode {
+    pub enum PowerMode {
         /// Normal turn on operation.
         #[default]
         Normal = 0,
@@ -279,73 +311,83 @@ pub mod power {
     #[serde(rename_all = "lowercase")]
     #[strum(ascii_case_insensitive)]
     /// The two power states: being on or off.
-    pub enum Power {
+    pub enum PowerOnOff {
         /// The lamp is on.
         On,
         /// The lamp is off.
         Off,
     }
 
-    impl From<bool> for Power {
+    #[derive(Clone, Copy, Debug, EnumDiscriminants, EnumString, ..Eqs, ..Serde)]
+    #[serde(rename_all = "snake_case")]
+    #[strum(ascii_case_insensitive)]
+    #[strum_discriminants(derive(Display, Serialize, Deserialize))]
+    #[strum_discriminants(name(SceneClass))] // don't use default name
+    #[strum_discriminants(serde(rename_all = "snake_case"))]
+    #[strum_discriminants(vis(pub))]
+    #[strum_discriminants(doc = "The different kinds of scene classes.")]
+    #[strum_discriminants(doc = "For example, Ct sets the color temperature of the lamp to some value.")]
+    /// An enum containing the data that describes the change applied to the lamp.
+    pub enum SceneTuple {
+        /// Set the lamp to some RGB color and brightness.
+        Color(u32, u8),
+        /// Set the lamp to some HSV color and brightness.
+        Hsv(u16, u8, u8),
+        /// Set the lamp to some color temperature and brightness.
+        Ct(u16, u8),
+        //Cf(usize, todo!(), unimplemented!()), // We need a new struct for color flow action (0/1/2) and flow expression...
+        // Vec<FlowExpression> where FlowExpression is an enum
+        // maybe we could also use serde's flatten??
+        // Either that or I'll write my own linked list / recursive struct:
+        // struct ColorFlow {
+        //      ... more stuff,
+        //      #[serde(flatten)] // should work??
+        //      next: Option<Box<Self>>,
+        // }
+        // Or make it even simpler: struct FlowExpression(dur,mode,val,bright)
+        // Or just suck it and take a String, and provide a Factory(Vec<(...)>) so we can build them on our own.
+        // Factory.add_ct(dur, ct, bright) would push a correct tuple to Factory.0
+        // Maybe a newtype pub struct ColorFlow(String) that can be created ONLY from our factory could be an option??
+        // like Factory.to_colorflow() -> ColorFlow
+        /// Set the lamp to a certain brightness and turn it off after some minutes.
+        AutoDelayOff(u8, usize),
+    }
+
+    #[derive(Clone, Copy, Debug, EnumString, ..Eqs, ..Serde)]
+    #[serde(rename_all = "lowercase")]
+    #[strum(ascii_case_insensitive)]
+    /// The different ways a value may be adjusted (open-loop control).
+    pub enum AdjustAction {
+        /// Increase the specified value.
+        Increase,
+        /// Decrease the specified value.
+        Decrease,
+        /// Increase the specified value and wrap around upon reaching the maximum value.
+        Circle,
+    }
+
+    #[derive(Clone, Copy, Debug, EnumString, ..Eqs, ..Serde)]
+    #[serde(rename_all = "lowercase")]
+    #[strum(ascii_case_insensitive)]
+    /// The different values that can be adjusted.
+    pub enum AdjustProp {
+        /// The brightness of the lamp.
+        Bright,
+        /// The color temperature of the lamp.
+        Ct,
+        /// The hue of the lamp.
+        ///
+        /// Use only AdjustAction::Circle with this.
+        Color,
+    }
+
+    impl From<bool> for PowerOnOff {
         fn from(value: bool) -> Self {
             match value {
                 true => Self::On,
                 false => Self::Off,
             }
         }
-    }
-
-    // I wanted to enforce the constraint that when "power":"off",
-    // you wouldn't specify "mode". However, this would violate KISS.
-
-    /*
-
-    /// An enum describing the operation done by set_power.
-    ///
-    /// That is, the lamp can either be turned off or on, entering some mode.
-    #[derive(Debug, EnumDiscriminants, EnumString, ..Eqs, ..Serde)]
-    #[strum_discriminants(derive(Display, Serialize, Deserialize))]
-    #[strum_discriminants(name(Power))] // don't use default name
-    #[strum_discriminants(serde(rename_all = "lowercase"))]
-    #[strum_discriminants(vis(pub))]
-    #[strum_discriminants(doc = "The two possible power states: being off or being on.")]
-    pub enum PowerOp {
-        Off,
-        On(Option<Mode>),
-    }
-
-    */
-}
-
-pub mod scene {
-    use derive_aliases::derive;
-    use derive_more::Debug;
-    use strum_macros::EnumString;
-
-    #[derive(Clone, Copy, Debug, EnumString, ..Serde)]
-    #[serde(rename_all = "lowercase")]
-    #[strum(ascii_case_insensitive)]
-    pub enum Class {
-        Color,
-        Hsv,
-        Ct,
-        Cf,
-        AutoDelayOff,
-    }
-}
-
-pub mod adjust {
-
-    pub enum Action {
-        Increase,
-        Decrease,
-        Circle,
-    }
-
-    pub enum Prop {
-        Bright,
-        Ct,
-        Color,
     }
 }
 
