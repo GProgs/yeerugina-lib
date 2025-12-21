@@ -4,7 +4,7 @@ use regex::Regex;
 use smol::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use smol::net::{AsyncToSocketAddrs, TcpStream as AsyncTcpStream};
 
-use smol::{Timer, pin};
+use smol::Timer;
 
 use std::io;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Write};
@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::{self, Command};
+use crate::cmd::Command;
 
 #[derive(Debug)]
 /// A struct that represents a Yeelight lamp.
