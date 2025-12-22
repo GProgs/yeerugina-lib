@@ -100,14 +100,20 @@ pub struct Method(MethodTuple);
 
 /// Public enum describing the way a command is applied.
 ///
+/// The easiest way to obtain valid Effects is to call Effect::from()
+/// and pass in a Duration (or a reference to one).
+///
 /// A sudden transition means that the lamp changes color / state instantly,
 /// while a smooth transition means the lamp gradually fades into the new state.
-/// A smooth transition must last for at least 30 milliseconds. Any Durations less than this
+/// The Yeelight Inter-Operation Specification stipulates that
+/// a smooth transition must last for at least 30 milliseconds.
+///
+/// When using From<Duration> and From<&Duration>: Any Durations less than this
 /// will get clamped to be equal to 30 ms. Passing a zero Duration makes this Effect
 /// behave like a sudden transition.
 #[attr_alias::eval]
 #[serde_as]
-#[derive(Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
+#[derive(Clone, Copy, Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(Display, Serialize, Deserialize))]
 #[strum_discriminants(name(EffectKind))] // don't use default name
@@ -148,6 +154,7 @@ impl Method {
     /// If it is, convert it to a sudden transition.
     /// For non-zero values, the duration gets clamped to min. 30 milliseconds.
     /// Sudden transitions get a zero Duration as a placeholder, which gets ignored by the lamp.
+    #[deprecated]
     fn unzip_effect(usr_eff: &Effect) -> (EffectKind, Duration) {
         // Handle Smooth effects w/ zero duration
         if let Effect::Smooth(_dur) = usr_eff
@@ -174,7 +181,9 @@ impl Method {
 
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
-        let (kind, dur) = Self::unzip_effect(eff);
+        //let (kind, dur) = Self::unzip_effect(eff);
+        let kind = eff.discriminant();
+        let dur = Duration::from(eff);
         let ct_clamp = clamp_colortemp(ct); //ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("Method | Color temperature was clamped");
@@ -184,7 +193,9 @@ impl Method {
 
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
-        let (kind, dur) = Self::unzip_effect(eff);
+        //let (kind, dur) = Self::unzip_effect(eff);
+        let kind = eff.discriminant();
+        let dur = Duration::from(eff);
         let RGB8 { r, g, b } = color.into(); // w/e we have in, convert it to RGB8
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
         Self(MethodTuple::SetRgb(rgb_int, kind, dur))
@@ -196,7 +207,9 @@ impl Method {
         T: IntoStimulus<f32>,
         f32: FromAngle<T>,
     {
-        let (kind, dur) = Self::unzip_effect(eff);
+        //let (kind, dur) = Self::unzip_effect(eff);
+        let kind = eff.discriminant();
+        let dur = Duration::from(eff);
         // colorspace is w/e, but we want f32
         let color_hsv: Hsv<S, f32> = color.into_format();
         let Hsv {
@@ -215,7 +228,9 @@ impl Method {
 
     /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
     pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
-        let (kind, dur) = Self::unzip_effect(eff);
+        //let (kind, dur) = Self::unzip_effect(eff);
+        let kind = eff.discriminant();
+        let dur = Duration::from(eff);
         let bright = clamp_brightness(bright); //bright.clamp(1, 100);
         Self(MethodTuple::SetBright(bright, kind, dur))
     }
@@ -226,7 +241,9 @@ impl Method {
         eff: &Effect,
         mode: Option<aux::PowerMode>,
     ) -> Self {
-        let (kind, dur) = Self::unzip_effect(eff);
+        //let (kind, dur) = Self::unzip_effect(eff);
+        let kind = eff.discriminant();
+        let dur = Duration::from(eff);
         Self(MethodTuple::SetPower(power, kind, dur, mode))
     }
 
@@ -250,6 +267,37 @@ impl Command {
             method: params.0.discriminant(), //Method::from(&params.0),
             params,
         }
+    }
+}
+
+impl From<Duration> for Effect {
+    fn from(value: Duration) -> Self {
+        if value.is_zero() {
+            Self::Sudden
+        } else {
+            Self::Smooth(clamp_duration(value))
+        }
+    }
+}
+
+impl From<&Duration> for Effect {
+    fn from(value: &Duration) -> Self {
+        Self::from(*value)
+    }
+}
+
+impl From<Effect> for Duration {
+    fn from(value: Effect) -> Self {
+        match value {
+            Effect::Sudden => Duration::ZERO,
+            Effect::Smooth(dur) => clamp_duration(dur),
+        }
+    }
+}
+
+impl From<&Effect> for Duration {
+    fn from(value: &Effect) -> Self {
+        Self::from(*value)
     }
 }
 
@@ -400,7 +448,8 @@ mod tests {
     #[test]
     fn create_smooth_zero_secs() {
         let result = Effect::Smooth(Duration::from_secs(0));
-        let (_, result_dur) = Method::unzip_effect(&result);
+        //let (_, result_dur) = Method::unzip_effect(&result);
+        let result_dur = Duration::from(&result);
         assert_eq!(result.discriminant(), EffectKind::Smooth);
         assert_ne!(result.discriminant(), EffectKind::Sudden);
         assert_eq!(result_dur, MIN_DURATION);
