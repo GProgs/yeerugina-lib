@@ -9,7 +9,7 @@ use crate::{clamp_brightness, clamp_colortemp, clamp_duration};
 
 #[derive(Debug, ..Eqs, ..Serde)]
 /// An enum containing the data needed for a flow tuple.
-pub(self) enum CfExpression {
+enum CfExpression {
     /// Set the color to some value.
     ///
     /// Duration, color, brightness.
@@ -51,7 +51,7 @@ impl FlowTuple {
         if bright != bright_clamp {
             debug!("FlowTuple | Brightness was clamped");
         }
-        return (dur_clamp, bright_clamp);
+        (dur_clamp, bright_clamp)
     }
 
     /// Create a new flow tuple that indicates a change to a certain RGB color and brightness.

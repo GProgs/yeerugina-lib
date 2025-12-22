@@ -156,7 +156,7 @@ impl<'a> Lamp {
     }
 
     /// Verify that the response contained in resp_buf has the same ID as this command.
-    fn verify_resp(cmd: &Command, resp_str: &String) -> Result<String, String> {
+    fn verify_resp(cmd: &Command, resp_str: &str) -> Result<String, String> {
         static RE: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r#"\{"id":(\d{1,3}),"result":\[(["\w\s]+)\]\}"#).unwrap());
         let caps = RE
