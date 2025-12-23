@@ -8,6 +8,8 @@ pub mod cmd;
 pub mod colorflow;
 /// Module for code related to interfacing with lamps.
 pub mod lamp;
+/// Module for limited quantities (i.e. durations larger than 30ms).
+pub mod lim;
 /// Module for convenience macros.
 pub mod macros;
 
