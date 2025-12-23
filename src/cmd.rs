@@ -1,4 +1,4 @@
-use std::time::Duration;
+//use std::time::Duration;
 
 use derive_aliases::derive;
 use derive_more::Debug;
@@ -8,14 +8,13 @@ use palette::angle::FromAngle;
 use palette::stimulus::IntoStimulus;
 use rgb::RGB8;
 use serde::{Deserialize, Serialize};
-use serde_with::DurationMilliSeconds;
 use serde_with::serde_as;
 use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
 use crate::clamp_brightness;
 use crate::clamp_colortemp;
-use crate::clamp_duration;
+use crate::lim::LimDuration;
 
 /*
  * Please follow this order:
@@ -45,8 +44,6 @@ use crate::clamp_duration;
 ///
 /// This stores both the different methods "such as set_ct_abx"
 /// as well as the parameters associated with each method.
-#[attr_alias::eval]
-#[serde_as]
 #[derive(Debug, EnumDiscriminants, ..Serde)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
@@ -57,22 +54,22 @@ use crate::clamp_duration;
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
 pub(self) enum MethodTuple {
     /// Set the color temperature of the lamp.
-    SetCtAbx(u16, EffectKind, #[attr_alias(ms)] Duration),
+    SetCtAbx(u16, EffectKind, LimDuration),
     /// Set the RGB color of the lamp.
     ///
     /// Largest byte is zero, then comes the red channel, then green and blue.
-    SetRgb(u32, EffectKind, #[attr_alias(ms)] Duration),
+    SetRgb(u32, EffectKind, LimDuration),
     /// Set the HSV color of the lamp.
     ///
     /// The hue is in 0..360, and saturation in 0..100.
-    SetHsv(u16, u8, EffectKind, #[attr_alias(ms)] Duration),
+    SetHsv(u16, u8, EffectKind, LimDuration),
     /// Set the brightness of the lamp to a percentage in 1..=100.
-    SetBright(u8, EffectKind, #[attr_alias(ms)] Duration),
+    SetBright(u8, EffectKind, LimDuration),
     /// Power the lamp on/off.
     SetPower(
         aux::PowerOnOff,
         EffectKind,
-        #[attr_alias(ms)] Duration,
+        LimDuration,
         #[serde(skip_serializing_if = "Option::is_none")] Option<aux::PowerMode>,
     ),
     /// Toggle the lamp on/off.
@@ -111,7 +108,6 @@ pub struct Method(MethodTuple);
 /// When using From<Duration> and From<&Duration>: Any Durations less than this
 /// will get clamped to be equal to 30 ms. Passing a zero Duration makes this Effect
 /// behave like a sudden transition.
-#[attr_alias::eval]
 #[serde_as]
 #[derive(Clone, Copy, Debug, Default, EnumDiscriminants, ..Eqs, ..Serde)]
 #[serde(rename_all = "snake_case")]
@@ -125,7 +121,7 @@ pub enum Effect {
     #[default]
     Sudden,
     /// Changes the color/state of the lamp gradually, over some time period.
-    Smooth(#[attr_alias(ms)] Duration),
+    Smooth(LimDuration),
 }
 // See explanation of MethodTuple.
 // The sudden transition is selected as the default (by me).
@@ -146,33 +142,22 @@ pub struct Command {
     params: Method,
 }
 
+macro_rules! new_method {
+    ($e:ident) => {
+        ($e.discriminant(), $e.get_duration().unwrap_or_default())
+    };
+    ($v:ident,$e:ident;$a:ident) => {{
+        let (kind, dur) = new_method!($e);
+        Method(MethodTuple::$v($a, kind, dur))
+    }};
+    ($v:ident,$e:ident;$a:ident,$b:ident) => {{
+        let (kind, dur) = new_method!($e);
+        Method(MethodTuple::$v($a, $b, kind, dur))
+    }};
+}
+
 // The idea is that we enforce limits in the constructors.
 impl Method {
-    /// Get the effect that will be sent to the lamp.
-    ///
-    /// The idea here is that we "validate" the user input, and check whether the duration is zero.
-    /// If it is, convert it to a sudden transition.
-    /// For non-zero values, the duration gets clamped to min. 30 milliseconds.
-    /// Sudden transitions get a zero Duration as a placeholder, which gets ignored by the lamp.
-    #[deprecated]
-    fn unzip_effect(usr_eff: &Effect) -> (EffectKind, Duration) {
-        // Handle Smooth effects w/ zero duration
-        if let Effect::Smooth(_dur) = usr_eff
-            && _dur.is_zero()
-        {
-            return (EffectKind::Sudden, Duration::ZERO);
-        }
-
-        // Sudden + Smooth w/ non-zero durations
-        (
-            usr_eff.discriminant(),
-            match usr_eff {
-                Effect::Sudden => Duration::ZERO,
-                Effect::Smooth(dur) => clamp_duration(*dur), //*dur.max(&MIN_DURATION),
-            },
-        )
-    }
-
     // For the constructors, I recommend using Self::process_usr_eff()
     // to easily get the MethodKind and Duration
     // which you will need to pass to the inner MethodTuple.
@@ -181,24 +166,21 @@ impl Method {
 
     /// Create a new Method that sets the color temperature of the lamp.
     pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
-        //let (kind, dur) = Self::unzip_effect(eff);
-        let kind = eff.discriminant();
-        let dur = Duration::from(eff);
+        //let kind = eff.discriminant();
+        //let dur = *eff.as_ref();
         let ct_clamp = clamp_colortemp(ct); //ct.clamp(1700, 6500);
         if ct != ct_clamp {
             debug!("Method | Color temperature was clamped");
         }
-        Self(MethodTuple::SetCtAbx(ct_clamp, kind, dur))
+        //Self(MethodTuple::SetCtAbx(ct_clamp, kind, dur))
+        new_method!(SetCtAbx, eff; ct_clamp)
     }
 
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
-        //let (kind, dur) = Self::unzip_effect(eff);
-        let kind = eff.discriminant();
-        let dur = Duration::from(eff);
         let RGB8 { r, g, b } = color.into(); // w/e we have in, convert it to RGB8
         let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
-        Self(MethodTuple::SetRgb(rgb_int, kind, dur))
+        new_method!(SetRgb, eff; rgb_int)
     }
 
     /// Create a new Method that sets the color of the lamp using the HSV system of colors.
@@ -207,9 +189,6 @@ impl Method {
         T: IntoStimulus<f32>,
         f32: FromAngle<T>,
     {
-        //let (kind, dur) = Self::unzip_effect(eff);
-        let kind = eff.discriminant();
-        let dur = Duration::from(eff);
         // colorspace is w/e, but we want f32
         let color_hsv: Hsv<S, f32> = color.into_format();
         let Hsv {
@@ -223,16 +202,13 @@ impl Method {
         let min_sat = Hsv::<S, f32>::min_saturation();
         let scaled_sat: u8 =
             (100.0 * (saturation - min_sat) / (Hsv::<S, f32>::max_saturation() - min_sat)) as u8;
-        Self(MethodTuple::SetHsv(scaled_hue, scaled_sat, kind, dur))
+        new_method!(SetHsv, eff; scaled_hue, scaled_sat)
     }
 
     /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
     pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
-        //let (kind, dur) = Self::unzip_effect(eff);
-        let kind = eff.discriminant();
-        let dur = Duration::from(eff);
         let bright = clamp_brightness(bright); //bright.clamp(1, 100);
-        Self(MethodTuple::SetBright(bright, kind, dur))
+        new_method!(SetBright, eff; bright)
     }
 
     /// Create a new Method that powers the lamp on or off.
@@ -241,9 +217,7 @@ impl Method {
         eff: &Effect,
         mode: Option<aux::PowerMode>,
     ) -> Self {
-        //let (kind, dur) = Self::unzip_effect(eff);
-        let kind = eff.discriminant();
-        let dur = Duration::from(eff);
+        let (kind, dur) = new_method!(eff);
         Self(MethodTuple::SetPower(power, kind, dur, mode))
     }
 
@@ -258,6 +232,22 @@ impl Method {
     }
 }
 
+impl Effect {
+    /// Get the duration contained by this Effect.
+    /// Return None if the Effect is Sudden.
+    ///
+    /// Tip: If you need to get a Duration, do
+    /// effect.get_duration().unwrap_or_default().
+    /// If you need a reference to the Duration within, you can do
+    /// effect.get_duration().as_ref() (or just &(effect.get_duration()))
+    pub fn get_duration(&self) -> Option<LimDuration> {
+        match self {
+            Self::Sudden => None,
+            Self::Smooth(dur) => Some(*dur),
+        }
+    }
+}
+
 impl Command {
     /// Create a new Command by passing in the id and Method (i.e. change color temp or RGB color).
     pub fn new(id: u8, params: Method) -> Self {
@@ -267,37 +257,6 @@ impl Command {
             method: params.0.discriminant(), //Method::from(&params.0),
             params,
         }
-    }
-}
-
-impl From<Duration> for Effect {
-    fn from(value: Duration) -> Self {
-        if value.is_zero() {
-            Self::Sudden
-        } else {
-            Self::Smooth(clamp_duration(value))
-        }
-    }
-}
-
-impl From<&Duration> for Effect {
-    fn from(value: &Duration) -> Self {
-        Self::from(*value)
-    }
-}
-
-impl From<Effect> for Duration {
-    fn from(value: Effect) -> Self {
-        match value {
-            Effect::Sudden => Duration::ZERO,
-            Effect::Smooth(dur) => clamp_duration(dur),
-        }
-    }
-}
-
-impl From<&Effect> for Duration {
-    fn from(value: &Effect) -> Self {
-        Self::from(*value)
     }
 }
 
@@ -442,17 +401,18 @@ pub mod aux {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MIN_DURATION;
+    use crate::lim::MIN_LIMDURATION;
     use pretty_assertions::{assert_eq, assert_ne};
+    use std::time::Duration;
 
     #[test]
     fn create_smooth_zero_secs() {
-        let result = Effect::Smooth(Duration::from_secs(0));
+        let result = Effect::Smooth(LimDuration::from(Duration::from_secs(0)));
         //let (_, result_dur) = Method::unzip_effect(&result);
-        let result_dur = Duration::from(&result);
+        let result_dur = result.get_duration().unwrap();
         assert_eq!(result.discriminant(), EffectKind::Smooth);
         assert_ne!(result.discriminant(), EffectKind::Sudden);
-        assert_eq!(result_dur, MIN_DURATION);
-        assert_ne!(result_dur, Duration::ZERO);
+        assert_eq!(result_dur, MIN_LIMDURATION);
+        assert_ne!(result_dur, LimDuration::from(Duration::ZERO));
     }
 }

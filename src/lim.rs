@@ -3,6 +3,8 @@ use std::time::Duration;
 use derive_aliases::derive;
 use derive_more::{AsRef, Debug};
 use rgb::RGB8;
+use serde_with::DurationMilliSeconds;
+use serde_with::serde_as;
 
 /// The shortest smooth transition supported by the lamp.
 ///
@@ -10,6 +12,10 @@ use rgb::RGB8;
 /// However, when Commands using these get passed to the Lamp, the short durations
 /// will get clamped to be equal to MIN_DURATION.
 pub const MIN_DURATION: Duration = Duration::from_millis(30);
+/// Equivalent to MIN_DURATION but as a LimDuration.
+pub const MIN_LIMDURATION: LimDuration = LimDuration(MIN_DURATION);
+/// A LimDuration equivalent to one second.
+pub const SECOND: LimDuration = LimDuration(Duration::from_secs(1));
 
 /// Minimum value for brightness.
 pub const MIN_BRIGHT: u8 = 1;
@@ -22,42 +28,45 @@ pub const MIN_CT: u16 = 1700;
 pub const MAX_CT: u16 = 6500;
 
 /// Newtype struct containing a duration limited to being larger than 30 ms.
-#[derive(AsRef, Clone, Copy, Debug, ..Serde)]
+///
+/// Note that LimDuration::default() will have a ZERO duration!
+#[serde_as]
+#[derive(AsRef, Clone, Copy, Debug, Default, ..Eqs, ..Serde)]
 #[serde(transparent)]
-pub struct LimDuration(Duration);
+pub struct LimDuration(#[serde_as(as = "DurationMilliSeconds<u64>")] Duration);
 
 /// Newtype struct representing a valid brightness value.
-#[derive(AsRef, Clone, Copy, Debug, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
 #[serde(transparent)]
 pub struct Brightness(u8);
 
 /// Newtype struct representing a valid color temperature value.
-#[derive(AsRef, Clone, Copy, Debug, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
 #[serde(transparent)]
 pub struct ColorTemp(u16);
 
 /// Newtype struct representing a valid RGB integer.
 ///
 /// This refers to the int that is sent to the lamp.
-#[derive(AsRef, Clone, Copy, Debug, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
 #[serde(transparent)]
 pub struct RGBInt(u32);
 
-impl<T: Into<Duration>> From<T> for LimDuration {
-    fn from(value: T) -> Self {
-        Self(MIN_DURATION.max(value.into()))
+impl From<Duration> for LimDuration {
+    fn from(value: Duration) -> Self {
+        Self(MIN_DURATION.max(value))
     }
 }
 
-impl<T: Into<u8>> From<T> for Brightness {
-    fn from(value: T) -> Self {
-        Self(value.into().clamp(MIN_BRIGHT, MAX_BRIGHT))
+impl From<u8> for Brightness {
+    fn from(value: u8) -> Self {
+        Self(value.clamp(MIN_BRIGHT, MAX_BRIGHT))
     }
 }
 
-impl<T: Into<u16>> From<T> for ColorTemp {
-    fn from(value: T) -> Self {
-        Self(value.into().clamp(MIN_CT, MAX_CT))
+impl From<u16> for ColorTemp {
+    fn from(value: u16) -> Self {
+        Self(value.clamp(MIN_CT, MAX_CT))
     }
 }
 

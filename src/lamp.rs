@@ -1,3 +1,4 @@
+use crate::lim::MIN_DURATION;
 use log::debug;
 use pin_project::pin_project;
 use regex::Regex;
@@ -109,7 +110,7 @@ impl<'a> Lamp {
         cmds: impl Iterator<Item = &'a Command>,
         dt: Duration,
     ) -> io::Result<()> {
-        if dt < crate::MIN_DURATION {
+        if dt < MIN_DURATION {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "dt must not be less than the minimum allowed effect duration".to_string(),
@@ -251,7 +252,7 @@ impl AsyncLamp {
         cmds: impl Iterator<Item = &Command>,
         dt: Duration,
     ) -> io::Result<()> {
-        if dt < crate::MIN_DURATION {
+        if dt < MIN_DURATION {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "dt must not be less than the minimum allowed effect duration".to_string(),
