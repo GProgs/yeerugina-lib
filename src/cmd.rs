@@ -44,7 +44,7 @@ use crate::lim::RGBInt;
 ///
 /// This stores both the different methods "such as set_ct_abx"
 /// as well as the parameters associated with each method.
-#[derive(Debug, EnumDiscriminants, ..Serde)]
+#[derive(Clone, Copy, Debug, EnumDiscriminants, ..Serde)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
 #[strum_discriminants(derive(Serialize, Deserialize))]
@@ -89,7 +89,7 @@ pub(self) enum MethodTuple {
 ///
 /// Use the constructor methods, such as Method::new_set_ct_abx() or Method::new_set_hsv()
 /// to create instances of Method.
-#[derive(Debug, ..Serde)]
+#[derive(Clone, Copy, Debug, ..Serde)]
 #[serde(transparent)]
 pub struct Method(MethodTuple);
 // serde(transparent) uses the serialization of MethodTuple
@@ -131,7 +131,7 @@ pub enum Effect {
 ///
 /// This contains the elements needed to construct the command string using serde's serialization capabilities.
 /// Pass your id and Method (taking ownership) to the Command::new() constructor to instantiate a Command.
-#[derive(Debug, ..Serde)]
+#[derive(Clone, Copy, Debug, ..Serde)]
 pub struct Command {
     /// A (non)unique ID that identifies the command.
     ///

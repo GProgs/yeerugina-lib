@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::time::Duration;
 
 use derive_aliases::derive;
@@ -15,7 +16,7 @@ pub const MIN_DURATION: Duration = Duration::from_millis(30);
 /// Equivalent to MIN_DURATION but as a LimDuration.
 pub const MIN_LIMDURATION: LimDuration = LimDuration(MIN_DURATION);
 /// A LimDuration equivalent to one second.
-pub const SECOND: LimDuration = LimDuration(Duration::from_secs(1));
+pub const LIM_SECOND: LimDuration = LimDuration(Duration::from_secs(1));
 
 /// Minimum value for brightness.
 pub const MIN_BRIGHT: u8 = 1;
@@ -34,6 +35,8 @@ pub const MAX_CT: u16 = 6500;
 #[derive(AsRef, Clone, Copy, Debug, Default, ..Eqs, ..Serde)]
 #[serde(transparent)]
 pub struct LimDuration(#[serde_as(as = "DurationMilliSeconds<u64>")] Duration);
+
+// Small note: Display for CfExpression needs our newtypes to implement Display.
 
 /// Newtype struct representing a valid brightness value.
 #[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
@@ -81,6 +84,32 @@ macro_rules! impl_display {
 }
 impl_display!(Brightness, ColorTemp, RGBInt);
 */
+
+impl Default for Brightness {
+    fn default() -> Self {
+        Self(MIN_BRIGHT)
+    }
+}
+
+impl Default for ColorTemp {
+    fn default() -> Self {
+        Self(MIN_CT)
+    }
+}
+
+impl Default for RGBInt {
+    fn default() -> Self {
+        Self::from(0xFFFFFFu32)
+    }
+}
+
+// Note that since this impl is used by CfExpression,
+// LimDuration will show the duration AS MILLISECONDS!
+impl Display for LimDuration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_millis())
+    }
+}
 
 impl From<Duration> for LimDuration {
     fn from(value: Duration) -> Self {

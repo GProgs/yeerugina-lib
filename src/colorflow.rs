@@ -2,21 +2,24 @@ use std::fmt::Display;
 
 use crate::lim::{Brightness, ColorTemp, LimDuration, RGBInt};
 use derive_aliases::derive;
-use derive_more::Debug;
+use derive_more::{Debug, Display};
 use rgb::RGB8;
 
-#[derive(Debug, ..Eqs, ..Serde)]
+#[derive(Debug, Display, ..Eqs, ..Serde)]
 /// An enum containing the data needed for a flow tuple.
 enum CfExpression {
     /// Set the color to some value.
     ///
     /// Duration, color, brightness.
+    #[display("{_0},1,{_1},{_2}")]
     Color(LimDuration, RGBInt, Brightness),
     /// Set the color temperature.
     ///
     /// Duration, color temp, brightness.
+    #[display("{_0},2,{_1},{_2}")]
     Ct(LimDuration, ColorTemp, Brightness),
     /// Sleep (i.e. don't do anything).
+    #[display("{_0},7,0,0")]
     Sleep(LimDuration),
 }
 
@@ -26,7 +29,8 @@ enum CfExpression {
 /// to create instances of FlowTuple.
 ///
 /// FlowTuple::default() will return a sleep of one second.
-#[derive(Debug, Default, ..Eqs, ..Serde)]
+#[derive(Debug, Default, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
 #[serde(transparent)]
 pub struct FlowTuple(CfExpression);
 
@@ -58,10 +62,11 @@ impl FlowTuple {
 
 impl Default for CfExpression {
     fn default() -> Self {
-        Self::Sleep(crate::lim::SECOND)
+        Self::Sleep(crate::lim::LIM_SECOND)
     }
 }
 
+/*
 impl Display for CfExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -73,12 +78,7 @@ impl Display for CfExpression {
         }
     }
 }
-
-impl Display for FlowTuple {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f) // delegate to contained value
-    }
-}
+*/
 
 impl Display for ColorFlow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
