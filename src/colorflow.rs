@@ -1,12 +1,9 @@
-use std::{fmt::Display, time::Duration};
+use std::fmt::Display;
 
-use crate::lim::LimDuration;
+use crate::lim::{Brightness, ColorTemp, LimDuration, RGBInt};
 use derive_aliases::derive;
 use derive_more::Debug;
-use log::debug;
 use rgb::RGB8;
-
-use crate::{clamp_brightness, clamp_colortemp};
 
 #[derive(Debug, ..Eqs, ..Serde)]
 /// An enum containing the data needed for a flow tuple.
@@ -14,11 +11,11 @@ enum CfExpression {
     /// Set the color to some value.
     ///
     /// Duration, color, brightness.
-    Color(LimDuration, u32, u8),
+    Color(LimDuration, RGBInt, Brightness),
     /// Set the color temperature.
     ///
     /// Duration, color temp, brightness.
-    Ct(LimDuration, u16, u8),
+    Ct(LimDuration, ColorTemp, Brightness),
     /// Sleep (i.e. don't do anything).
     Sleep(LimDuration),
 }
@@ -41,28 +38,16 @@ pub struct FlowTuple(CfExpression);
 pub struct ColorFlow(pub Vec<FlowTuple>);
 
 impl FlowTuple {
-    /// Clamp the duration and brightness to appropriate values.
-    ///
-    /// This is basically a wrapper that deals with logging.
-    #[deprecated]
-    fn clamp_dur_bright(dur: Duration, bright: u8) -> (Duration, u8) {
-        unimplemented!();
-    }
-
     /// Create a new flow tuple that indicates a change to a certain RGB color and brightness.
-    pub fn new_color<T: Into<RGB8>>(dur: LimDuration, color: T, bright: u8) -> Self {
+    pub fn new_color<T: Into<RGB8>>(dur: LimDuration, color: T, bright: Brightness) -> Self {
         let RGB8 { r, g, b } = color.into();
-        let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
+        let rgb_int = RGBInt::from_be_bytes([0u8, r, g, b]);
         Self(CfExpression::Color(dur, rgb_int, bright))
     }
 
     /// Create a new flow tuple that indicates a change to a certain color temperature and brightness.
-    pub fn new_ct(dur: LimDuration, ct: u16, bright: u8) -> Self {
-        let ct_clamp = clamp_colortemp(ct);
-        if ct != ct_clamp {
-            debug!("FlowTuple | Color temperature was clamped");
-        }
-        Self(CfExpression::Ct(dur, ct_clamp, bright))
+    pub fn new_ct(dur: LimDuration, ct: ColorTemp, bright: Brightness) -> Self {
+        Self(CfExpression::Ct(dur, ct, bright))
     }
 
     /// Create a new flow tuple that holds the current state of the lamp for some duration.

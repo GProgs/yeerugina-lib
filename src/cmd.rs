@@ -2,7 +2,6 @@
 
 use derive_aliases::derive;
 use derive_more::Debug;
-use log::debug;
 use palette::Hsv;
 use palette::angle::FromAngle;
 use palette::stimulus::IntoStimulus;
@@ -12,9 +11,10 @@ use serde_with::serde_as;
 use strum::IntoDiscriminant;
 use strum_macros::{Display, EnumDiscriminants};
 
-use crate::clamp_brightness;
-use crate::clamp_colortemp;
+use crate::lim::Brightness;
+use crate::lim::ColorTemp;
 use crate::lim::LimDuration;
+use crate::lim::RGBInt;
 
 /*
  * Please follow this order:
@@ -54,17 +54,17 @@ use crate::lim::LimDuration;
 #[strum_discriminants(doc = "The different kinds of commands that can be given to the lamp.")]
 pub(self) enum MethodTuple {
     /// Set the color temperature of the lamp.
-    SetCtAbx(u16, EffectKind, LimDuration),
+    SetCtAbx(ColorTemp, EffectKind, LimDuration),
     /// Set the RGB color of the lamp.
     ///
     /// Largest byte is zero, then comes the red channel, then green and blue.
-    SetRgb(u32, EffectKind, LimDuration),
+    SetRgb(RGBInt, EffectKind, LimDuration),
     /// Set the HSV color of the lamp.
     ///
     /// The hue is in 0..360, and saturation in 0..100.
     SetHsv(u16, u8, EffectKind, LimDuration),
     /// Set the brightness of the lamp to a percentage in 1..=100.
-    SetBright(u8, EffectKind, LimDuration),
+    SetBright(Brightness, EffectKind, LimDuration),
     /// Power the lamp on/off.
     SetPower(
         aux::PowerOnOff,
@@ -165,21 +165,17 @@ impl Method {
     // However, we need a placeholder, otherwise the lamp won't accept the cmd.
 
     /// Create a new Method that sets the color temperature of the lamp.
-    pub fn new_set_ct_abx(ct: u16, eff: &Effect) -> Self {
+    pub fn new_set_ct_abx(ct: ColorTemp, eff: &Effect) -> Self {
         //let kind = eff.discriminant();
         //let dur = *eff.as_ref();
-        let ct_clamp = clamp_colortemp(ct); //ct.clamp(1700, 6500);
-        if ct != ct_clamp {
-            debug!("Method | Color temperature was clamped");
-        }
         //Self(MethodTuple::SetCtAbx(ct_clamp, kind, dur))
-        new_method!(SetCtAbx, eff; ct_clamp)
+        new_method!(SetCtAbx, eff; ct)
     }
 
     /// Create a new Method that sets the RGB color of the lamp.
     pub fn new_set_rgb<T: Into<RGB8>>(color: T, eff: &Effect) -> Self {
         let RGB8 { r, g, b } = color.into(); // w/e we have in, convert it to RGB8
-        let rgb_int = u32::from_be_bytes([0u8, r, g, b]);
+        let rgb_int = RGBInt::from_be_bytes([0u8, r, g, b]);
         new_method!(SetRgb, eff; rgb_int)
     }
 
@@ -206,8 +202,7 @@ impl Method {
     }
 
     /// Create a new Method that sets the brightness of the lamp to some percentage between 1 % and 100 %.
-    pub fn new_set_bright(bright: u8, eff: &Effect) -> Self {
-        let bright = clamp_brightness(bright); //bright.clamp(1, 100);
+    pub fn new_set_bright(bright: Brightness, eff: &Effect) -> Self {
         new_method!(SetBright, eff; bright)
     }
 

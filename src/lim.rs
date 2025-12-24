@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use derive_aliases::derive;
-use derive_more::{AsRef, Debug};
+use derive_more::{AsRef, Debug, Display};
 use rgb::RGB8;
 use serde_with::DurationMilliSeconds;
 use serde_with::serde_as;
@@ -36,21 +36,51 @@ pub const MAX_CT: u16 = 6500;
 pub struct LimDuration(#[serde_as(as = "DurationMilliSeconds<u64>")] Duration);
 
 /// Newtype struct representing a valid brightness value.
-#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
 #[serde(transparent)]
 pub struct Brightness(u8);
 
 /// Newtype struct representing a valid color temperature value.
-#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
 #[serde(transparent)]
 pub struct ColorTemp(u16);
 
 /// Newtype struct representing a valid RGB integer.
 ///
 /// This refers to the int that is sent to the lamp.
-#[derive(AsRef, Clone, Copy, Debug, ..Eqs, ..Serde)]
+#[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
 #[serde(transparent)]
 pub struct RGBInt(u32);
+
+// TODO create hue and saturation structs
+
+impl RGBInt {
+    /// Constructs an RGBInt in native endian from a byte array in big endian.
+    pub const fn from_be_bytes(bytes: [u8; 4]) -> Self {
+        Self(u32::from_be_bytes(bytes))
+    }
+}
+
+/*
+/// Macro that delegates the implementation of Display for newtypes
+macro_rules! impl_display {
+    ($i:ident) => {
+        impl Display for $i {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+    };
+    ($h:ident,$($t:ident),+) => {
+        impl_display!($h);
+        impl_display!($($t),+);
+    };
+}
+impl_display!(Brightness, ColorTemp, RGBInt);
+*/
 
 impl From<Duration> for LimDuration {
     fn from(value: Duration) -> Self {
