@@ -5,6 +5,23 @@ macro_rules! cmd {
     };
 }
 */
+/*
+/// Macro that delegates the implementation of Display for newtypes
+macro_rules! impl_display {
+    ($i:ident) => {
+        impl Display for $i {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+    };
+    ($h:ident,$($t:ident),+) => {
+        impl_display!($h);
+        impl_display!($($t),+);
+    };
+}
+impl_display!(Brightness, ColorTemp, RGBInt);
+*/
 
 /// Convenience macro to instantiate new Methods.
 ///
@@ -28,4 +45,37 @@ macro_rules! new_method {
         let (kind, dur) = new_method!($e);
         Method(MethodTuple::$v($a, $b, kind, dur))
     }};
+}
+
+// tf = type from, tt = type this
+
+/// Macro that creates an implementation of From for a newtype struct.
+///
+/// Used by crate::lim for its newtype structs.
+///
+/// Example invocation: impl_from_lim!(u8,Brightness,MIN_BRIGHT,MAX_BRIGHT)
+#[macro_export]
+macro_rules! impl_from_lim {
+    ($tf:ty,$tt:ty,$min:expr,$max:expr) => {
+        impl From<$tf> for $tt {
+            fn from(value: $tf) -> Self {
+                Self(value.clamp($min, $max))
+            }
+        }
+    };
+}
+/// Macro that creates an implementation of Default for a newtype struct.
+///
+/// Used by crate::lim for its newtype structs.
+///
+/// Example invocation: impl_default!(Brightness,Self(MIN_BRIGHT))
+#[macro_export]
+macro_rules! impl_default {
+    ($tt:ty,$exp:expr) => {
+        impl Default for $tt {
+            fn default() -> Self {
+                $exp
+            }
+        }
+    };
 }

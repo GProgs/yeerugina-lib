@@ -7,6 +7,9 @@ use rgb::RGB8;
 use serde_with::DurationMilliSeconds;
 use serde_with::serde_as;
 
+use crate::impl_default;
+use crate::impl_from_lim;
+
 /// The shortest smooth transition supported by the lamp.
 ///
 /// Note that it is possible to instantiate Effects with durations less than this.
@@ -27,6 +30,23 @@ pub const MAX_BRIGHT: u8 = 100;
 pub const MIN_CT: u16 = 1700;
 /// Highest allowed color brightness value (in kelvins).
 pub const MAX_CT: u16 = 6500;
+
+/// Minimum value for HSV hue.
+pub const MIN_HUE: u16 = 0;
+/// Maximum value for HSV hue.
+pub const MAX_HUE: u16 = 359;
+
+/// Minimum value for HSV saturation.
+pub const MIN_SAT: u8 = 0;
+/// Maximum value for HSV saturation.
+pub const MAX_SAT: u8 = 99;
+
+// Guidelines for newtype structs with limits:
+// Add #[serde(transparent)]
+//
+// Derive: AsRef and other common traits
+// Impl: From, if possible Default
+// Derive or impl: Display
 
 /// Newtype struct containing a duration limited to being larger than 30 ms.
 ///
@@ -59,6 +79,17 @@ pub struct ColorTemp(u16);
 pub struct RGBInt(u32);
 
 // TODO create hue and saturation structs
+/// Newtype struct representing a valid hue value.
+#[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
+#[serde(transparent)]
+pub struct Hue(u16);
+
+/// Newtype struct representing a valid saturation value.
+#[derive(AsRef, Clone, Copy, Debug, Display, ..Eqs, ..Serde)]
+#[display("{_0}")]
+#[serde(transparent)]
+pub struct Sat(u8);
 
 impl RGBInt {
     /// Constructs an RGBInt in native endian from a byte array in big endian.
@@ -67,41 +98,13 @@ impl RGBInt {
     }
 }
 
-/*
-/// Macro that delegates the implementation of Display for newtypes
-macro_rules! impl_display {
-    ($i:ident) => {
-        impl Display for $i {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-    };
-    ($h:ident,$($t:ident),+) => {
-        impl_display!($h);
-        impl_display!($($t),+);
-    };
-}
-impl_display!(Brightness, ColorTemp, RGBInt);
-*/
-
-impl Default for Brightness {
-    fn default() -> Self {
-        Self(MIN_BRIGHT)
-    }
-}
-
-impl Default for ColorTemp {
-    fn default() -> Self {
-        Self(MIN_CT)
-    }
-}
-
-impl Default for RGBInt {
-    fn default() -> Self {
-        Self::from(0xFFFFFFu32)
-    }
-}
+// Implementations of Default
+// Most of these should be able to be done with impl_default!()
+impl_default!(Brightness, Self(MAX_BRIGHT));
+impl_default!(ColorTemp, Self(MAX_CT));
+impl_default!(RGBInt, Self::from(0xFFFFFFu32));
+impl_default!(Hue, Self(MIN_HUE));
+impl_default!(Sat, Self(MAX_SAT));
 
 // Note that since this impl is used by CfExpression,
 // LimDuration will show the duration AS MILLISECONDS!
@@ -111,23 +114,17 @@ impl Display for LimDuration {
     }
 }
 
+// Implementations of From
+// Note that more complicated expressions need to be written MANUALLY.
+// impl_from_lim!() works ONLY for clamping.
 impl From<Duration> for LimDuration {
     fn from(value: Duration) -> Self {
         Self(MIN_DURATION.max(value))
     }
 }
 
-impl From<u8> for Brightness {
-    fn from(value: u8) -> Self {
-        Self(value.clamp(MIN_BRIGHT, MAX_BRIGHT))
-    }
-}
-
-impl From<u16> for ColorTemp {
-    fn from(value: u16) -> Self {
-        Self(value.clamp(MIN_CT, MAX_CT))
-    }
-}
+impl_from_lim!(u8, Brightness, MIN_BRIGHT, MAX_BRIGHT);
+impl_from_lim!(u16, ColorTemp, MIN_CT, MAX_CT);
 
 impl From<u32> for RGBInt {
     fn from(value: u32) -> Self {
@@ -142,3 +139,6 @@ impl From<RGB8> for RGBInt {
         Self(rgb_int)
     }
 }
+
+impl_from_lim!(u16, Hue, MIN_HUE, MAX_HUE);
+impl_from_lim!(u8, Sat, MIN_SAT, MAX_SAT);
