@@ -15,6 +15,7 @@ use crate::lim::Brightness;
 use crate::lim::ColorTemp;
 use crate::lim::LimDuration;
 use crate::lim::RGBInt;
+use crate::new_method;
 
 /*
  * Please follow this order:
@@ -140,20 +141,6 @@ pub struct Command {
     pub id: u8,
     method: MethodKind,
     params: Method,
-}
-
-macro_rules! new_method {
-    ($e:ident) => {
-        ($e.discriminant(), $e.get_duration().unwrap_or_default())
-    };
-    ($v:ident,$e:ident;$a:ident) => {{
-        let (kind, dur) = new_method!($e);
-        Method(MethodTuple::$v($a, kind, dur))
-    }};
-    ($v:ident,$e:ident;$a:ident,$b:ident) => {{
-        let (kind, dur) = new_method!($e);
-        Method(MethodTuple::$v($a, $b, kind, dur))
-    }};
 }
 
 // The idea is that we enforce limits in the constructors.
